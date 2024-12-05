@@ -146,45 +146,60 @@ declare(strict_types=1);
                     case 1: // FSR14-4x
                     case 2: // FSR14-2x
                     case 9: // F4SR14-LED
-                        $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
                         $id = $searchDataEntries(51);
-                        $configuration = [
-                            'DeviceID' => $id,
-                            'ReturnID' => sprintf('%08X', $id),
-                            'Mode' => 1,
-                        ];
+                        if ($id) {
+                            $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
+                            $configuration = [
+                                'DeviceID' => $id,
+                                'ReturnID' => sprintf('%08X', $id),
+                                'Mode' => 1,
+                            ];
+                        }
                         break;
                     case 4: // FUD14
                     case 5: // FUD14/800W
-                        $guid = "{48909406-A2B9-4990-934F-28B9A80CD079}";
                         $id = $searchDataEntries(32);
-                        $configuration = [
-                            'DeviceID' => $id,
-                            'ReturnID' => sprintf('%08X', $id),
-                        ];
+                        if ($id) {
+                            $guid = "{48909406-A2B9-4990-934F-28B9A80CD079}";
+                            $configuration = [
+                                'DeviceID' => $id,
+                                'ReturnID' => sprintf('%08X', $id),
+                            ];
+                        }
                         break;
                     case 6: // FSB14
-                        $guid = "{1463CAE7-C7D5-4623-8539-DD7ADA6E92A9}";
                         $id = $searchDataEntries(31);
-                        $configuration = [
-                            'DeviceID' => $id,
-                            'ReturnID' => sprintf('%08X', $id),
-                        ];
+                        if ($id) {
+                            $guid = "{1463CAE7-C7D5-4623-8539-DD7ADA6E92A9}";
+                            $configuration = [
+                                'DeviceID' => $id,
+                                'ReturnID' => sprintf('%08X', $id),
+                            ];
+                        }
                         break;
                     case 24: //F4HK14
-                        $guid = "{7C25F5A6-ED34-4FB4-8A6D-D49DFE636CDC}";
                         $id = $searchDataEntries(64);
+                        if ($id) {
+                            $guid = "{7C25F5A6-ED34-4FB4-8A6D-D49DFE636CDC}";
+                            $configuration = [
+                                'DeviceID' => $id,
+                                'ReturnID' => sprintf('%08X', $id),
+                                'Mode' => 1,
+                            ];
+                        }
+                        break;
+                    case 26: //FWG14MS
+                        $guid = "{9E4572C0-C306-4F00-B536-E75B4950F094}";
+                        $id = '00001800';
                         $configuration = [
                             'DeviceID' => $id,
-                            'ReturnID' => sprintf('%08X', $id),
-                            'Mode' => 1,
                         ];
                         break;
                 }
                 if ($needUpdate) {
                     $item['status'] = $this->Translate('Needs updating');
                 }
-                else if ($guid && $id) {
+                else if ($guid) {
                     $item['create'] = [
                         [
                             'name' => $item['name'],
@@ -202,7 +217,12 @@ declare(strict_types=1);
                         ],
                     ];
                     $item['instanceID'] = $this->searchDevice($id, $guid);
-                    $item['status'] = sprintf("OK (%s%02X)", substr($this->ReadPropertyString('BaseID'), 0, 6), $id);
+                    if (is_int($id)) {
+                        $item['status'] = sprintf("OK (%s%02X)", substr($this->ReadPropertyString('BaseID'), 0, 6), $id);
+                    }
+                    else {
+                        $item['status'] = sprintf("OK (%s)", $id);
+                    }
                 }
                 $configurator[] = $item;
             }
