@@ -1,0 +1,43 @@
+{
+    "elements": [
+        {
+            "type": "SelectFile",
+            "name": "ImportFile",
+            "caption": "PCT14 XML Export",
+            "extensions": ".xml",
+            "onChange": "PCTI_UIImport($id, $ImportFile);"
+        }
+    ],
+    "actions": [
+        {
+            "type": "Configurator",
+            "name": "Configurator",
+            "discoveryInterval": 300,
+            "caption": "Devices",
+            "delete": false,
+            "columns": [
+                {
+                    "label": "Address",
+                    "name": "address",
+                    "width": "120px"
+                },
+                {
+                    "label": "Name",
+                    "name": "name",
+                    "width": "auto"
+                },
+                {
+                    "label": "Device",
+                    "name": "type",
+                    "width": "250px"
+                }
+            ],
+            "sort": {
+                "column": "address",
+                "direction": "ascending"
+            },
+            "values": []
+        }
+    ],
+    "status": []
+}

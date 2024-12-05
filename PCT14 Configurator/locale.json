@@ -1,0 +1,12 @@
+{
+    "translations": {
+        "de": {
+            "Devices": "Geräte",
+            "Address": "Adresse",
+            "Name": "Name",
+            "Device Type": "Gerätetyp",
+            "PCT14 XML Export": "PCT14 XML Export",
+            "PCT14 Configurator": "PCT14 Konfigurator"
+        }
+    }
+}

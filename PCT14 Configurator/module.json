@@ -1,0 +1,12 @@
+{
+    "id": "{10C87EDE-944A-5DF7-990D-180EB3B9E939}",
+    "name": "PCT14 Configurator",
+    "type": 4,
+    "vendor": "",
+    "aliases": [],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "PCTI",
+    "url": "https://symcon.de"
+}
