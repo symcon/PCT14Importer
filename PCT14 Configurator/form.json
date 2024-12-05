@@ -1,11 +1,21 @@
 {
     "elements": [
         {
-            "type": "SelectFile",
-            "name": "ImportFile",
-            "caption": "PCT14 XML Export",
-            "extensions": ".xml",
-            "onChange": "PCTI_UIImport($id, $ImportFile);"
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "SelectFile",
+                    "name": "ImportFile",
+                    "caption": "PCT14 XML Export",
+                    "extensions": ".xml",
+                    "onChange": "PCTI_UIImport($id, $ImportFile);"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "BaseID",
+                    "caption": "BaseID"
+                }
+            ]
         }
     ],
     "actions": [
@@ -29,6 +39,11 @@
                 {
                     "label": "Device",
                     "name": "type",
+                    "width": "250px"
+                },
+                {
+                    "label": "Status",
+                    "name": "status",
                     "width": "250px"
                 }
             ],

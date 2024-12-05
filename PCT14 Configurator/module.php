@@ -23,6 +23,7 @@ declare(strict_types=1);
             parent::Create();
 
             $this->RegisterPropertyString('ImportFile', '');
+            $this->RegisterPropertyString('BaseID', 'EF000000');
         }
 
         public function Destroy()
@@ -79,34 +80,97 @@ declare(strict_types=1);
             $this->UpdateFormField('Configurator', 'values', json_encode($this->createConfiguratorValues($File)));
         }
 
-        private function addGateway(&$device)
+        private function searchDevice($deviceID, $guid): int
         {
-            if (isset($device['create'])) {
-                $fgw14 = isset($device['baseID']) && (hexdec($device['baseID']) & 0x0000FFFF) === 0;
-                $gateway = [
-                    'name' => $fgw14 ? 'FGW14 Gateway' : 'LAN Gateway',
-                    'moduleID' => '{A52FEFE9-7858-4B8E-A96E-26E15CB944F7}', // EnOcean Gateway;
-                    'configuration' => [
-                        'GatewayMode' => $fgw14 ? 4 : 3 // LAN Gateway
-                    ]
-                ];
-                if ($fgw14) {
-                    $gateway['configuration']['BaseID'] = $device['baseID'];
+            $ids = IPS_GetInstanceListByModuleID($guid);
+            foreach ($ids as $id) {
+                if (IPS_GetProperty($id, 'DeviceID') == $deviceID) {
+                    return $id;
                 }
-                $device['create'][] = $gateway;
-                $this->SendDebug('Create', json_encode($device['create']), 0);
             }
+            return 0;
         }
 
-        private function createDevice(&$configurator, $device, &$needUpdate)
+        private function createDevice(&$configurator, &$device, &$needUpdate)
         {
             foreach ($device->channels->channel as $channel) {
-                $configurator[] = [
+                $item = [
                     'address' => intval($device->header->address) + (intval($channel['channelnumber']) - 1),
                     'name' => strval($device->description) ?: strval($channel['description']),
-                    'type' => strval($device->description) ? strval($device->name) : sprintf('%s (Channel %s)', $device->name, $channel['channelnumber']),
+                    'type' => strval($device->description) ? strval($device->name) : sprintf($this->Translate('%s (Channel %s)'), $device->name, $channel['channelnumber']),
+                    'status' => $this->Translate("Unsupported device"),
                     'instanceID' => 0,
                 ];
+                // add 'create' block if we support the device
+                $guid = '';
+                $configuration = new stdClass();
+
+                // Search data->rangeofid entries and verify that for the channel->channelnumber
+                // the matching entry->entry_channel exists that has the entry->entry_function set
+                // to the $function value. If yes, we want to use the entry->entry_id and verify
+                // that the baseID matches (only the first 6 characters). If yes, we can use the
+                // last 2 characters of the entry->entry_id as the address. entry->entry_id needs
+                // to be reversed byte-wise and converted to hex
+                // if no, create the entry and set the needUpdate flag
+                $searchDataEntries = function($function) use(&$device, $channel, &$needUpdate) {
+                    return 1;
+                };
+
+                $id = 0;
+                switch (intval($device->header->devicetype)) {
+                    case 2: // FSR14-2x
+                    case 9: // F4SR14-LED
+                        $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
+                        $id = $searchDataEntries(51);
+                        $configuration = [
+                            'DeviceID' => $id,
+                            'ReturnID' => sprintf('%08X', $id),
+                            'Mode' => 1,
+                        ];
+                        break;
+                    case 4: // FUD14
+                    case 5: // FUD14/800W
+                        $guid = "{48909406-A2B9-4990-934F-28B9A80CD079}";
+                        $id = $searchDataEntries(32);
+                        $configuration = [
+                            'DeviceID' => $id,
+                            'ReturnID' => sprintf('%08X', $id),
+                        ];
+                        break;
+                    case 6: // FSB14
+                        $guid = "{1463CAE7-C7D5-4623-8539-DD7ADA6E92A9}";
+                        $id = $searchDataEntries(31);
+                        $configuration = [
+                            'DeviceID' => $id,
+                            'ReturnID' => sprintf('%08X', $id),
+                        ];
+                        break;
+                }
+                if ($guid) {
+                    $item['create'] = [
+                        [
+                            'name' => $item['name'],
+                            'moduleID' => $guid,
+                            'configuration' => $configuration,
+                        ],
+                        [
+                            'name' => 'FGW14 Gateway',
+                            // EnOcean Gateway
+                            'moduleID' => '{A52FEFE9-7858-4B8E-A96E-26E15CB944F7}',
+                            'configuration' => [
+                                'GatewayMode' => 4,
+                                'BaseID' => $this->ReadPropertyString('BaseID'),
+                            ]
+                        ],
+                    ];
+                    $item['instanceID'] = $this->searchDevice($id, $guid);
+                    if ($needUpdate) {
+                        $item['status'] = $this->Translate('Needs updating');
+                    } else {
+                        $item['status'] = sprintf("OK (%s%02X)", $this->ReadPropertyString('BaseID'), $id);
+                    }
+                }
+                $configurator[] = $item;
             }
         }
     }
