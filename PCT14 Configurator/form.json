@@ -24,7 +24,7 @@
             "name": "Configurator",
             "discoveryInterval": 300,
             "caption": "Devices",
-            "delete": false,
+            "delete": true,
             "columns": [
                 {
                     "label": "Address",

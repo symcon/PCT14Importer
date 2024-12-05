@@ -3,27 +3,13 @@
 declare(strict_types=1);
     class PCT14Configurator extends IPSModule
     {
-        public const GUID_MAP = [
-            'PTMSwitchModule' => '{40C99CC9-EC04-49C8-BB9B-73E21B6FA265}',
-            'Switch_1' => '{FD46DA33-724B-489E-A931-C00BFD0166C9}',
-            'Dimmer_1' => '{48909406-A2B9-4990-934F-28B9A80CD079}',
-            'Jalousie_1' =>  '{1463CAE7-C7D5-4623-8539-DD7ADA6E92A9}',
-            'WindowContact' => '{432FF87E-4497-48D6-8ED9-EE7104D50001}',
-            'RoomTemperatureControl' => '{432FF87E-4497-48D6-8ED9-EE7104A51003}',
-            'TemperatureHumidity' => '{432FF87E-4497-48D6-8ED9-EE7104A50402}',
-            'PIR' => '{432FF87E-4497-48D6-8ED9-EE7104F60201}',
-            'WindowHandle' => '{1C8D7E80-3ED1-4117-BB53-9C5F61B1BEF3}',
-            'Brightness' => '{AF827EB8-08A3-434D-9690-424AFF06C698}',
-            'EnergyMeter' => '{432FF87E-4497-48D6-8ED9-EE7104A51201}',
-        ];
-
         public function Create()
         {
             //Never delete this line!
             parent::Create();
 
             $this->RegisterPropertyString('ImportFile', '');
-            $this->RegisterPropertyString('BaseID', 'EF000000');
+            $this->RegisterPropertyString('BaseID', '0000A000');
         }
 
         public function Destroy()
@@ -93,6 +79,16 @@ declare(strict_types=1);
 
         private function createDevice(&$configurator, &$device, &$needUpdate)
         {
+            if (!isset($device->channels->channel)) {
+                $configurator[] = [
+                    'address' => intval($device->header->address),
+                    'name' => strval($device->description),
+                    'type' => strval($device->name),
+                    'status' => $this->Translate("Unsupported device"),
+                    'instanceID' => 0,
+                ];
+                return;
+            }
             foreach ($device->channels->channel as $channel) {
                 $item = [
                     'address' => intval($device->header->address) + (intval($channel['channelnumber']) - 1),
@@ -105,6 +101,21 @@ declare(strict_types=1);
                 $guid = '';
                 $configuration = new stdClass();
 
+                // We want to show the ID in reversed byte order
+                $reverseBytes = function($int) {
+                    // Ensure it's treated as unsigned 32-bit
+                    $int = $int & 0xFFFFFFFF;
+
+                    // Reverse the bytes manually
+                    $byte1 = ($int & 0xFF000000) >> 24;
+                    $byte2 = ($int & 0x00FF0000) >> 8;
+                    $byte3 = ($int & 0x0000FF00) << 8;
+                    $byte4 = ($int & 0x000000FF) << 24;
+
+                    // Combine the reversed bytes
+                    return ($byte1 | $byte2 | $byte3 | $byte4);
+                };
+
                 // Search data->rangeofid entries and verify that for the channel->channelnumber
                 // the matching entry->entry_channel exists that has the entry->entry_function set
                 // to the $function value. If yes, we want to use the entry->entry_id and verify
@@ -112,12 +123,27 @@ declare(strict_types=1);
                 // last 2 characters of the entry->entry_id as the address. entry->entry_id needs
                 // to be reversed byte-wise and converted to hex
                 // if no, create the entry and set the needUpdate flag
-                $searchDataEntries = function($function) use(&$device, $channel, &$needUpdate) {
-                    return 1;
+                $searchDataEntries = function($function) use(&$device, $channel, &$needUpdate, $reverseBytes) {
+                    foreach ($device->data->rangeofid->entry as $entry) {
+                        // entry_channel is a bitmask. Make some shifting magic
+                        if (intval($entry->entry_channel) == (1 << (intval($channel['channelnumber']) - 1))) {
+                            if (intval($entry->entry_function) == $function) {
+                                $entryIdReversed = $reverseBytes($entry->entry_id);
+                                $entryIdHex = sprintf("%08X", $entryIdReversed);
+                                if (substr($this->ReadPropertyString("BaseID"), 0, 6) == substr($entryIdHex, 0, 6)) {
+                                    return $entryIdReversed & 0xFF;
+                                }
+                            }
+                        }
+                    }
+                    // FIXME: Add function to data entries
+                    $needUpdate = true;
+                    return 0;
                 };
 
                 $id = 0;
                 switch (intval($device->header->devicetype)) {
+                    case 1: // FSR14-4x
                     case 2: // FSR14-2x
                     case 9: // F4SR14-LED
                         $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
@@ -145,8 +171,20 @@ declare(strict_types=1);
                             'ReturnID' => sprintf('%08X', $id),
                         ];
                         break;
+                    case 24: //F4HK14
+                        $guid = "{7C25F5A6-ED34-4FB4-8A6D-D49DFE636CDC}";
+                        $id = $searchDataEntries(64);
+                        $configuration = [
+                            'DeviceID' => $id,
+                            'ReturnID' => sprintf('%08X', $id),
+                            'Mode' => 1,
+                        ];
+                        break;
                 }
-                if ($guid) {
+                if ($needUpdate) {
+                    $item['status'] = $this->Translate('Needs updating');
+                }
+                else if ($guid && $id) {
                     $item['create'] = [
                         [
                             'name' => $item['name'],
@@ -164,11 +202,7 @@ declare(strict_types=1);
                         ],
                     ];
                     $item['instanceID'] = $this->searchDevice($id, $guid);
-                    if ($needUpdate) {
-                        $item['status'] = $this->Translate('Needs updating');
-                    } else {
-                        $item['status'] = sprintf("OK (%s%02X)", $this->ReadPropertyString('BaseID'), $id);
-                    }
+                    $item['status'] = sprintf("OK (%s%02X)", substr($this->ReadPropertyString('BaseID'), 0, 6), $id);
                 }
                 $configurator[] = $item;
             }
