@@ -40,7 +40,7 @@ declare(strict_types=1);
         private function createConfiguratorValues(String $File)
         {
             if (strlen($File) == 0) {
-                return false;
+                return [];
             }
             $xml = simplexml_load_string(base64_decode($File), null, LIBXML_NOCDATA);
 
