@@ -1,5 +1,5 @@
 # PCT14 Importer
-Das Modul ermöglicht es aus myHomeControl exportierte XML-Dateien in IP-Symcon zu importieren.
+Das Modul ermöglicht es aus der PCT14 exportierte XML-Dateien in IP-Symcon zu importieren.
 
 ### Inhaltsverzeichnis
 
@@ -13,7 +13,7 @@ Das Modul ermöglicht es aus myHomeControl exportierte XML-Dateien in IP-Symcon 
 
 ### 1. Funktionsumfang
 
-* XML-Dateien aus myHomeControl importieren
+* XML-Dateien aus PCT14 importieren
 
 ### 2. Voraussetzungen
 
@@ -21,19 +21,19 @@ Das Modul ermöglicht es aus myHomeControl exportierte XML-Dateien in IP-Symcon 
 
 ### 3. Software-Installation
 
-* Über den Module Store das 'myHomeControl Importer'-Modul installieren.
+* Über den Module Store das 'PCT14 Importer'-Modul installieren.
 * Alternativ über das Module Control folgende URL hinzufügen
 
 ### 4. Einrichten der Instanzen in IP-Symcon
 
- Unter 'Instanz hinzufügen' kann das 'myHomeControl Importer'-Modul mithilfe des Schnellfilters gefunden werden.  
+ Unter 'Instanz hinzufügen' kann das 'PCT14 Importer'-Modul mithilfe des Schnellfilters gefunden werden.  
 	- Weitere Informationen zum Hinzufügen von Instanzen in der [Dokumentation der Instanzen](https://www.symcon.de/service/dokumentation/konzepte/instanzen/#Instanz_hinzufügen)
 
 __Konfigurationsseite__:
 
 Name                  | Beschreibung
 --------------------- | ------------------
-myHomeControl Projekt | Hier wird die XML-Datei ausgewählt
+PCT14 XML-Export      | Hier wird die XML-Datei ausgewählt
 
 ### 5. Statusvariablen und Profile
 
