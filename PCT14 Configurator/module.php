@@ -55,7 +55,13 @@ declare(strict_types=1);
             $configurator = [];
 
             foreach ($xml->devices->device as $device) {
-                $this->createDevice($configurator, $device, $needUpdate);
+                if ($this->createDevice($configurator, $device)) {
+                    $needUpdate = true;
+                }
+            }
+
+            if ($needUpdate) {
+                // Show dialog to allow downloading new XML file
             }
 
             return $configurator;
@@ -77,7 +83,7 @@ declare(strict_types=1);
             return 0;
         }
 
-        private function createDevice(&$configurator, &$device, &$needUpdate)
+        private function createDevice(&$configurator, &$device)
         {
             if (!isset($device->channels->channel)) {
                 $configurator[] = [
@@ -87,9 +93,12 @@ declare(strict_types=1);
                     'status' => $this->Translate("Unsupported device"),
                     'instanceID' => 0,
                 ];
-                return;
+                return false;
             }
+            $needUpdateDevice = false;
             foreach ($device->channels->channel as $channel) {
+                $needUpdate = false;
+
                 $item = [
                     'address' => intval($device->header->address) + (intval($channel['channelnumber']) - 1),
                     'name' => strval($device->description) ?: strval($channel['description']),
@@ -225,6 +234,10 @@ declare(strict_types=1);
                     }
                 }
                 $configurator[] = $item;
+                if ($needUpdate) {
+                    $needUpdateDevice = true;
+                }
             }
+            return $needUpdateDevice;
         }
     }
