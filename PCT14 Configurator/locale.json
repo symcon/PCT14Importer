@@ -9,7 +9,8 @@
             "PCT14 Configurator": "PCT14 Konfigurator",
             "%s (Channel %s)": "%s (Kanal %s)",
             "Unsupported device": "Nicht unterstütztes Gerät",
-            "Needs updating": "Muss aktualisiert werden"
+            "Needs updating": "Muss aktualisiert werden",
+            "OK (Not required)": "OK (Nicht benötigt)"
         }
     }
 }
