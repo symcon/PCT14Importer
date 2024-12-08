@@ -347,6 +347,9 @@ declare(strict_types=1);
                             'DeviceID' => $id,
                         ];
                         break;
+                    case 254: //FGW14
+                        $item['status'] = $this->Translate("OK (Not required)");
+                        break;
                 }
                 if ($needUpdate) {
                     $item['status'] = $this->Translate('Needs updating');
