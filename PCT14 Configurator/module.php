@@ -125,7 +125,7 @@ declare(strict_types=1);
                         $level = $this->getLevel($matches[0][2]);
                         $room = $this->getRoom($matches[0][5]);
                         $location = [$level[0], $room[0]];
-                        $deviceName = str_replace([$matches[0][0], str_replace('/', '_', $room[0]), $level[0], 'NOTSTROM'], '', $deviceName);
+                        $deviceName = trim(str_replace([$matches[0][0], str_replace('/', '_', $room[0]), $level[0], 'NOTSTROM'], '', $deviceName));
                         if (!$this->nodeExists($level[1], $configurator)) {
                             $configurator[] = [
                                 'name' => $level[0],
