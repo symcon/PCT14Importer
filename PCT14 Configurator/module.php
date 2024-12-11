@@ -147,6 +147,7 @@ declare(strict_types=1);
                                 'id' => 999,
                             ];
                         }
+                        $deviceName = trim(str_replace('NOTSTROM', '', $deviceName));
                         $location = [$this->getLevel(999)[0]];
                         $parentID = 999;
                     }
