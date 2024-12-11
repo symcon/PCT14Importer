@@ -118,12 +118,14 @@ declare(strict_types=1);
 
                 $deviceName = strval($device->description) ?: strval($channel['description']);
                 $parentID = 0;
+                $location = [];
                 if ($weberMode) {
                     $matches = $this->matchWeber($deviceName);
                     if ($matches) {
-                        $deviceName = self::WEBER_DEVICES[$matches[0][1]]. ' ' . $deviceName;
                         $level = $this->getLevel($matches[0][2]);
                         $room = $this->getRoom($matches[0][5]);
+                        $location = [$level[0], $room[0]];
+                        $deviceName = str_replace([$matches[0][0], str_replace('/', '_',$room[0]), $level[0], 'NOTSTROM'], '', $deviceName);
                         if (!$this->nodeExists($level[1], $configurator)) {
                             $configurator[] = [
                                 'name' => $level[0],
@@ -264,6 +266,7 @@ declare(strict_types=1);
                             'name' => $item['name'],
                             'moduleID' => $guid,
                             'configuration' => $configuration,
+                            'location' => $location,
                         ],
                         [
                             'name' => 'FGW14 Gateway',
