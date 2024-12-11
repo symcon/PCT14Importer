@@ -32,12 +32,18 @@ declare(strict_types=1);
         {
             $data = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
             if (($this->ReadPropertyString('ImportFile') != '')) {
-                $data['actions'][0]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
+                $formValues = $this->createFormValues($this->ReadPropertyString('ImportFile'));
+                $data['actions'][0]['values'] = $formValues['configurator'];
+                if ($formValues['button']) {
+                    $data['actions'][1]['visible'] = true;
+                    $data['actions'][1]['popup']['items'][0]['caption'] = sprintf($this->Translate($data['actions'][1]['popup']['items'][0]['caption']), $formValues['updateCount']);
+                    $data['actions'][1]['popup']['items'][1]['onClick'] = $formValues['button'];
+                }
             }
             return json_encode($data);
         }
 
-        private function createConfiguratorValues(String $File)
+        private function createFormValues(String $File)
         {
             if (strlen($File) == 0) {
                 return [];
@@ -50,26 +56,39 @@ declare(strict_types=1);
 
             // we want to signal, that we needed to patch the XML file
             // and should open the dialog to allow downloading of the updated XML file
-            $needUpdate = false;
+            $updateCount = 0;
 
             $configurator = [];
 
             foreach ($xml->devices->device as $device) {
                 if ($this->createDevice($configurator, $device)) {
-                    $needUpdate = true;
+                    $updateCount++;
                 }
             }
 
-            if ($needUpdate) {
-                // Show dialog to allow downloading new XML file
+            $button = "";
+
+            // Show dialog to allow downloading new XML file
+            if ($updateCount > 0) {
+                $button = "echo 'data:text/xml;base64,PHhtbD48L3htbD4=';";
             }
 
-            return $configurator;
+            return [
+                "configurator" => $configurator,
+                "updateCount" => $updateCount,
+                "button" => $button,
+            ];
         }
 
         public function UIImport($File)
         {
-            $this->UpdateFormField('Configurator', 'values', json_encode($this->createConfiguratorValues($File)));
+            $formValues = $this->createFormValues($File);
+            $this->UpdateFormField('Configurator', 'values', json_encode($formValues['configurator']));
+            if ($formValues['button']) {
+                $this->UpdateFormField('DownloadAlert', 'visible', true);
+                // FIXME: Translate DownloadHint
+                $this->UpdateFormField('DownloadButton', 'onClick', $formValues['button']);
+            }
         }
 
         private function searchDevice($deviceID, $guid): int
@@ -133,6 +152,7 @@ declare(strict_types=1);
                 // to be reversed byte-wise and converted to hex
                 // if no, create the entry and set the needUpdate flag
                 $searchDataEntries = function($function) use(&$device, $channel, &$needUpdate, $reverseBytes) {
+                    $maxEntryNumber = 0;
                     foreach ($device->data->rangeofid->entry as $entry) {
                         // entry_channel is a bitmask. Make some shifting magic
                         if (intval($entry->entry_channel) == (1 << (intval($channel['channelnumber']) - 1))) {
@@ -144,8 +164,19 @@ declare(strict_types=1);
                                 }
                             }
                         }
+                        // save the max entry number to being able to properly create a new entry if the entry is missing
+                        $maxEntryNumber = max($maxEntryNumber, intval($entry->entry_number));
                     }
-                    // FIXME: Add function to data entries
+                    // create new entry$entry = $device->data->rangeofid->addChild('entry');
+                    $entry->addAttribute('maxnumberofcharacter', 47);
+                    $entry->addAttribute('description', "");
+                    $entry->addChild("entry_number", ++$maxEntryNumber);
+                    $entry->addChild("entry_id", 0);
+                    $entry->addChild("entry_function", $function);
+                    $entry->addChild("entry_button", 0);
+                    $entry->addChild("entry_channel", (1 << (intval($channel['channelnumber']) - 1)));
+                    $entry->addChild("entry_value", 0);
+                    // set need update flag to true
                     $needUpdate = true;
                     return 0;
                 };

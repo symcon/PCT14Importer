@@ -10,7 +10,9 @@
             "%s (Channel %s)": "%s (Kanal %s)",
             "Unsupported device": "Nicht unterstütztes Gerät",
             "Needs updating": "Muss aktualisiert werden",
-            "OK (Not required)": "OK (Nicht benötigt)"
+            "OK (Not required)": "OK (Nicht benötigt)",
+            "%s devices need to be updated!\n\nPlease download the XML file, import into Eltako PCT14 and programm those devices.\nAfterwards export the new XML from Eltako PCT14 and import it into this configurator.": "%s Geräte müssen aktualisiert werden!\n\nBitte die XML-Datei herunterladen, ins Eltako PCT14 importieren und danach die Geräte programmieren.\nAnschließend die neue XML-Datei aus Eltako PCT14 exportieren und in diesen Konfigurator importieren.",
+            "Download": "Herunterladen"
         }
     }
 }
