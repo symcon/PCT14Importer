@@ -116,7 +116,7 @@ declare(strict_types=1);
             foreach ($device->channels->channel as $channel) {
                 $needUpdate = false;
 
-                $deviceName = strval($device->description) ?: strval($channel['description']);
+                $deviceName = strval($channel['description']) ?: strval($device->description);
                 $parentID = 0;
                 $location = [];
                 if ($weberMode) {
@@ -155,7 +155,7 @@ declare(strict_types=1);
                 $item = [
                     'address' => intval($device->header->address) + (intval($channel['channelnumber']) - 1),
                     'name' => $deviceName,
-                    'type' => strval($device->description) ? strval($device->name) : sprintf($this->Translate('%s (Channel %s)'), $device->name, $channel['channelnumber']),
+                    'type' => strval($channel['description']) ? sprintf($this->Translate('%s (Channel %s)'), $device->name, $channel['channelnumber']) : strval($device->name),
                     'status' => $this->Translate("Unsupported device"),
                     'instanceID' => 0,
                     'parent' => $parentID,
