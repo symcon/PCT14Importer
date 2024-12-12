@@ -52,6 +52,18 @@
                 "direction": "ascending"
             },
             "values": []
+        },
+        {
+            "type": "Select",
+            "name": "ImageSet",
+            "caption": "Image Set",
+            "options": []
+        },
+        {
+            "type": "Button",
+            "caption": "Add Images",
+            "name": "AddImages",
+            "onClick": "PCTI_CreateImages($id, $Configurator, $ImageSet);"
         }
     ],
     "status": []

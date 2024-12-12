@@ -40,7 +40,90 @@ declare(strict_types=1);
             if (($this->ReadPropertyString('ImportFile') != '')) {
                 $data['actions'][0]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
             }
+            // Add all directories in /imgs/ to select
+            $sets = scandir($this->getImageBasePath());
+            $imageSets = [];
+            foreach ($sets as $set) {
+                $dirName = basename($set);
+                if (!in_array($dirName, ['.', '..'])) {
+                    $imageSets[] = [
+                        'value' => $dirName,
+                        'caption' => $dirName,
+                    ];
+                }
+            }
+            $data['actions'][1]['options'] = $imageSets;
             return json_encode($data);
+        }
+
+        public function CreateImages($configurator, $imageSet)
+        {
+            $this->SendDebug('IMAGES', print_r($configurator, true), 0);
+            $checkedCategories = [];
+            foreach ($configurator as $device) {
+                if (($device['instanceID'] != 0) && isset($device['create'][0]['location'])) {
+                    $instanceID = $device['instanceID'];
+                    $parentID = IPS_GetParent($instanceID);
+                    $location = $device['create'][0]['location'];
+                    do {
+                        if (!in_array($parentID, $checkedCategories)) {
+                            $this->addImage($parentID, IPS_GetName($parentID), $imageSet);
+                            $checkedCategories[] = $parentID;
+                        }
+                        $parentID = IPS_GetParent($parentID);
+                    } while (in_array(IPS_GetName($parentID), $location));
+                }
+            }
+        }
+
+        private function addImage($categoryID, $name, $imageSet)
+        {
+            $imagePath = $this->getImagePath($name, $imageSet);
+            $children =  IPS_GetChildrenIDs($categoryID);
+            $mediaID = 0;
+            foreach ($children as $child) {
+                if (IPS_GetObject($child)['ObjectIdent'] == 'BackgroundImage') {
+                    $mediaID = $child;
+                    break;
+                }
+            }
+            // If we don't have a matching image return and delete media if we have one
+            if ($imagePath === false) {
+                if ($mediaID != 0) {
+                    IPS_DeleteMedia($mediaID, true);
+                }
+                return;
+            }
+            //Create new media if we have none
+            if ($mediaID === 0) {
+                $mediaID = IPS_CreateMedia(1);
+                IPS_SetIdent($mediaID, 'BackgroundImage');
+                IPS_SetParent($mediaID, $categoryID);
+                IPS_SetName($mediaID, "$name Background");
+                IPS_SetHidden($mediaID, true);
+            }
+            $file = file_get_contents($imagePath);
+            
+            IPS_SetMediaFile($mediaID, 'media' . DIRECTORY_SEPARATOR . $mediaID . '.' . pathinfo($imagePath, PATHINFO_EXTENSION), false);
+            IPS_SetMediaContent($mediaID, base64_encode($file));
+        }
+
+        private function getImagePath($name, $imageSet)
+        {
+            $imgPath = $this->getImageBasePath() . DIRECTORY_SEPARATOR . $imageSet;
+            $images = scandir($imgPath);
+            foreach ($images as $image) {
+                $name = str_replace('/', '_', $name);
+                if ($name == pathinfo($image, PATHINFO_FILENAME)) {
+                    return  $imgPath . DIRECTORY_SEPARATOR .  $image;
+                }
+            }
+            return false;
+        }
+
+        private function getImageBasePath(){
+            $dir = explode(DIRECTORY_SEPARATOR, __DIR__);
+            return join(DIRECTORY_SEPARATOR, array_replace($dir, [count($dir) - 1 => 'imgs']));
         }
 
         private function createConfiguratorValues(String $File)
@@ -69,6 +152,11 @@ declare(strict_types=1);
                         break;
                     }
                 }
+            }
+            if ($weberMode) {
+                $this->UpdateFormField('AddImages', 'visible', true);
+            } else {
+                $this->UpdateFormField('AddImages', 'visible', false);
             }
 
             foreach ($xml->devices->device as $device) {
