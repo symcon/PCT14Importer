@@ -3,6 +3,12 @@
 declare(strict_types=1);
     class PCT14Configurator extends IPSModule
     {
+        private const WEBER_DEVICES = [
+            'SD' => 'Steckdose',
+            'M' => 'Rolladen',
+            'L' => 'Licht'
+        ];
+
         public function Create()
         {
             //Never delete this line!
@@ -31,10 +37,94 @@ declare(strict_types=1);
         public function GetConfigurationForm(): string
         {
             $data = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
+            // Add all directories in /imgs/ to select
+            $sets = scandir($this->getImageBasePath());
+            $imageSets = [];
+            foreach ($sets as $set) {
+                $dirName = basename($set);
+                
+                if (!in_array($dirName, ['.', '..'])) {
+                    $imageSets[] = [
+                        'value' => $dirName,
+                        'caption' => $dirName,
+                    ];
+                }
+            }
+
+            $data['actions'][0]['items'][0]['options'] = $imageSets;
             if (($this->ReadPropertyString('ImportFile') != '')) {
-                $data['actions'][0]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
+                $data['actions'][1]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
             }
             return json_encode($data);
+        }
+
+        public function CreateImages($configurator, $imageSet)
+        {
+            $checkedCategories = [];
+            foreach ($configurator as $device) {
+                if (($device['instanceID'] != 0) && isset($device['create'][0]['location'])) {
+                    $instanceID = $device['instanceID'];
+                    $parentID = IPS_GetParent($instanceID);
+                    $location = $device['create'][0]['location'];
+                    do {
+                        if (!in_array($parentID, $checkedCategories)) {
+                            $this->addImage($parentID, IPS_GetName($parentID), $imageSet);
+                            $checkedCategories[] = $parentID;
+                        }
+                        $parentID = IPS_GetParent($parentID);
+                    } while (in_array(IPS_GetName($parentID), $location));
+                }
+            }
+        }
+
+        private function addImage($categoryID, $name, $imageSet)
+        {
+            $imagePath = $this->getImagePath($name, $imageSet);
+            $children =  IPS_GetChildrenIDs($categoryID);
+            $mediaID = 0;
+            foreach ($children as $child) {
+                if (IPS_GetObject($child)['ObjectIdent'] == 'BackgroundImage') {
+                    $mediaID = $child;
+                    break;
+                }
+            }
+            // If we don't have a matching image return and delete media if we have one
+            if ($imagePath === false) {
+                if ($mediaID != 0) {
+                    IPS_DeleteMedia($mediaID, true);
+                }
+                return;
+            }
+            //Create new media if we have none
+            if ($mediaID === 0) {
+                $mediaID = IPS_CreateMedia(1);
+                IPS_SetIdent($mediaID, 'BackgroundImage');
+                IPS_SetParent($mediaID, $categoryID);
+                IPS_SetName($mediaID, "$name Background");
+                IPS_SetHidden($mediaID, true);
+            }
+            $file = file_get_contents($imagePath);
+            
+            IPS_SetMediaFile($mediaID, 'media' . DIRECTORY_SEPARATOR . $mediaID . '.' . pathinfo($imagePath, PATHINFO_EXTENSION), false);
+            IPS_SetMediaContent($mediaID, base64_encode($file));
+        }
+
+        private function getImagePath($name, $imageSet)
+        {
+            $imgPath = $this->getImageBasePath() . DIRECTORY_SEPARATOR . $imageSet;
+            $images = scandir($imgPath);
+            foreach ($images as $image) {
+                $name = str_replace('/', '_', $name);
+                if ($name == pathinfo($image, PATHINFO_FILENAME)) {
+                    return  $imgPath . DIRECTORY_SEPARATOR .  $image;
+                }
+            }
+            return false;
+        }
+
+        private function getImageBasePath(){
+            $dir = explode(DIRECTORY_SEPARATOR, __DIR__);
+            return join(DIRECTORY_SEPARATOR, array_replace($dir, [count($dir) - 1 => 'imgs']));
         }
 
         private function createConfiguratorValues(String $File)
@@ -54,8 +144,24 @@ declare(strict_types=1);
 
             $configurator = [];
 
+            // Check for any WeberHaus devices
+            $weberMode = false;
             foreach ($xml->devices->device as $device) {
-                if ($this->createDevice($configurator, $device)) {
+                foreach ($device->channels->channel as $channel) {
+                    if ($this->matchWeber(strval($device->description) ?: strval($channel['description']))) {
+                        $weberMode = true;
+                        break;
+                    }
+                }
+            }
+            if ($weberMode) {
+                $this->UpdateFormField('AddImages', 'visible', true);
+            } else {
+                $this->UpdateFormField('AddImages', 'visible', false);
+            }
+
+            foreach ($xml->devices->device as $device) {
+                if ($this->createDevice($configurator, $device, $weberMode)) {
                     $needUpdate = true;
                 }
             }
@@ -83,7 +189,7 @@ declare(strict_types=1);
             return 0;
         }
 
-        private function createDevice(&$configurator, &$device)
+        private function createDevice(&$configurator, &$device, $weberMode)
         {
             if (!isset($device->channels->channel)) {
                 $configurator[] = [
@@ -99,19 +205,56 @@ declare(strict_types=1);
             foreach ($device->channels->channel as $channel) {
                 $needUpdate = false;
 
+                $deviceName = strval($channel['description']) ?: strval($device->description);
+                $parentID = 0;
+                $location = [];
+                if ($weberMode) {
+                    $matches = $this->matchWeber($deviceName);
+                    if ($matches) {
+                        $level = $this->getLevel($matches[0][2]);
+                        $room = $this->getRoom($matches[0][5]);
+                        $location = [$level[0], $room[0]];
+                        $deviceName = trim(str_replace([$matches[0][0], str_replace('/', '_', $room[0]), $level[0], 'NOTSTROM'], '', $deviceName));
+                        if (!$this->nodeExists($level[1], $configurator)) {
+                            $configurator[] = [
+                                'name' => $level[0],
+                                'id' => $level[1],
+                            ];
+                        }
+                        $parentID = $level[1] . $room[1];
+                        if (!$this->nodeExists($parentID, $configurator)) {
+                            $configurator[] = [
+                                'name' => $room[0],
+                                'parent' => $level[1],
+                                'id' => $parentID,
+                            ];
+                        }
+                    } else {
+                        if (!$this->nodeExists(999, $configurator)) {
+                            $configurator[] = [
+                                'name' => $this->getLevel(999)[0],
+                                'id' => 999,
+                            ];
+                        }
+                        $deviceName = trim(str_replace('NOTSTROM', '', $deviceName));
+                        $location = [$this->getLevel(999)[0]];
+                        $parentID = 999;
+                    }
+                }
                 $item = [
                     'address' => intval($device->header->address) + (intval($channel['channelnumber']) - 1),
-                    'name' => strval($device->description) ?: strval($channel['description']),
-                    'type' => strval($device->description) ? strval($device->name) : sprintf($this->Translate('%s (Channel %s)'), $device->name, $channel['channelnumber']),
+                    'name' => $deviceName,
+                    'type' => strval($channel['description']) ? sprintf($this->Translate('%s (Channel %s)'), $device->name, $channel['channelnumber']) : strval($device->name),
                     'status' => $this->Translate("Unsupported device"),
                     'instanceID' => 0,
+                    'parent' => $parentID,
                 ];
                 // add 'create' block if we support the device
                 $guid = '';
                 $configuration = new stdClass();
 
                 // We want to show the ID in reversed byte order
-                $reverseBytes = function($int) {
+                $reverseBytes = function ($int) {
                     // Ensure it's treated as unsigned 32-bit
                     $int = $int & 0xFFFFFFFF;
 
@@ -132,7 +275,7 @@ declare(strict_types=1);
                 // last 2 characters of the entry->entry_id as the address. entry->entry_id needs
                 // to be reversed byte-wise and converted to hex
                 // if no, create the entry and set the needUpdate flag
-                $searchDataEntries = function($function) use(&$device, $channel, &$needUpdate, $reverseBytes) {
+                $searchDataEntries = function ($function) use (&$device, $channel, &$needUpdate, $reverseBytes) {
                     foreach ($device->data->rangeofid->entry as $entry) {
                         // entry_channel is a bitmask. Make some shifting magic
                         if (intval($entry->entry_channel) == (1 << (intval($channel['channelnumber']) - 1))) {
@@ -207,13 +350,13 @@ declare(strict_types=1);
                 }
                 if ($needUpdate) {
                     $item['status'] = $this->Translate('Needs updating');
-                }
-                else if ($guid) {
+                } elseif ($guid) {
                     $item['create'] = [
                         [
                             'name' => $item['name'],
                             'moduleID' => $guid,
                             'configuration' => $configuration,
+                            'location' => $location,
                         ],
                         [
                             'name' => 'FGW14 Gateway',
@@ -228,8 +371,7 @@ declare(strict_types=1);
                     $item['instanceID'] = $this->searchDevice($id, $guid);
                     if (is_int($id)) {
                         $item['status'] = sprintf("OK (%s%02X)", substr($this->ReadPropertyString('BaseID'), 0, 6), $id);
-                    }
-                    else {
+                    } else {
                         $item['status'] = sprintf("OK (%s)", $id);
                     }
                 }
@@ -239,5 +381,98 @@ declare(strict_types=1);
                 }
             }
             return $needUpdateDevice;
+        }
+
+        // maybe use array search
+        private function nodeExists($id, $configurator)
+        {
+            foreach ($configurator as $device) {
+                if (isset($device['id']) && ($device['id'] == $id)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private function matchWeber($string)
+        {
+            preg_match_all('/(M|SD|L|R|W|T|F)(\d{1})(\d{2})(\d{1})(\d{2})\.(\d)/', $string, $matches, PREG_SET_ORDER, 0);
+            return $matches;
+        }
+
+        private function getLevel($value)
+        {
+            switch ($value) {
+                case 1:
+                    return ['Keller', 1];
+                case 2:
+                    return ['Erdgeschoss', 2];
+                case 3:
+                    return ['Obergeschoss', 3];
+                case 4:
+                    return ['Dachgeschoss', 4];
+                default:
+                    return ['Sonstige', 999];
+            }
+        }
+
+        private function getRoom($value)
+        {
+            switch ($value) {
+                case 1:
+                    return ['Hauseingang', 1];
+                case 5:
+                    return ['Diele', 5];
+                case 6:
+                    return ['Flur', 6];
+                case 7:
+                    return ['Garderobe', 7];
+                case 8:
+                    return ['Empore', 8];
+                case 11:
+                    return ['WC', 11];
+                case 13:
+                    return ['Dusch-WC', 13];
+                case 15:
+                    return ['Bad', 15];
+                case 17:
+                    return ['Küche', 17];
+                case 22:
+                    return ['Abstellraum', 22];
+                case 23:
+                    return ['Abstellraum 2', 23];
+                case 24:
+                    return ['Hauswirtschaftsraum', 24];
+                case 25:
+                    return ['Technikraum', 25];
+                case 26:
+                    return ['Garage', 26];
+                case 33:
+                    return ['Essen/Wohnen', 33];
+                case 34:
+                    return ['Eltern', 34];
+                case 35:
+                    return ['Ankleide', 35];
+                case 36:
+                    return ['Zimmer 1', 36];
+                case 46:
+                    return ['Terasse', 46];
+                case 52:
+                    return ['Loggia', 52];
+                case 67:
+                    return ['Keller 1', 67];
+                case 68:
+                    return ['Keller 2', 68];
+                case 69:
+                    return ['Keller 3', 69];
+                case 70:
+                    return ['Keller 4', 70];
+                case 71:
+                    return ['Keller 5', 71];
+                case 72:
+                    return ['Keller 6', 72];
+                default:
+                    return ["Raum $value", $value];
+            }
         }
     }
