@@ -37,9 +37,6 @@ declare(strict_types=1);
         public function GetConfigurationForm(): string
         {
             $data = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
-            if (($this->ReadPropertyString('ImportFile') != '')) {
-                $data['actions'][0]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
-            }
             // Add all directories in /imgs/ to select
             $sets = scandir($this->getImageBasePath());
             $imageSets = [];
@@ -52,7 +49,11 @@ declare(strict_types=1);
                     ];
                 }
             }
-            $data['actions'][1]['options'] = $imageSets;
+            
+            $data['actions'][0]['items'][0]['options'] = $imageSets;
+            if (($this->ReadPropertyString('ImportFile') != '')) {
+                $data['actions'][1]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
+            }
             return json_encode($data);
         }
 
