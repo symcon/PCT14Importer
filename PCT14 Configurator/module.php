@@ -42,6 +42,7 @@ declare(strict_types=1);
             $imageSets = [];
             foreach ($sets as $set) {
                 $dirName = basename($set);
+                
                 if (!in_array($dirName, ['.', '..'])) {
                     $imageSets[] = [
                         'value' => $dirName,
@@ -49,7 +50,7 @@ declare(strict_types=1);
                     ];
                 }
             }
-            
+
             $data['actions'][0]['items'][0]['options'] = $imageSets;
             if (($this->ReadPropertyString('ImportFile') != '')) {
                 $data['actions'][1]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
@@ -59,7 +60,6 @@ declare(strict_types=1);
 
         public function CreateImages($configurator, $imageSet)
         {
-            $this->SendDebug('IMAGES', print_r($configurator, true), 0);
             $checkedCategories = [];
             foreach ($configurator as $device) {
                 if (($device['instanceID'] != 0) && isset($device['create'][0]['location'])) {
