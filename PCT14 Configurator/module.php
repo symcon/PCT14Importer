@@ -270,7 +270,7 @@ declare(strict_types=1);
             $guid = '';
             switch ($device[0]) {
                 case 'FWS81':
-                    $guid = ' {432FF87E-4497-48D6-8ED9-EE7104F60501}';
+                    $guid = '{432FF87E-4497-48D6-8ED9-EE7104F60501}';
                     break;
 
                 case 'FBH55ESB':
