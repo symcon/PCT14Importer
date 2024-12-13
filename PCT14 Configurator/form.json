@@ -8,7 +8,7 @@
                     "name": "ImportFile",
                     "caption": "PCT14 XML Export",
                     "extensions": ".xml",
-                    "onChange": "PCTI_UICreateConfiguratorValues($id, $ImportFile, $AdditionalFile);"
+                    "onChange": "PCTI_UIImport($id, $ImportFile, $RadioFile, $SecurityFile);"
                 },
                 {
                     "type": "ValidationTextBox",
@@ -17,10 +17,17 @@
                 },
                 {
                     "type": "SelectFile",
-                    "name": "AdditionalFile",
-                    "caption": "Additional Devices CSV",
+                    "name": "RadioFile",
+                    "caption": "Radio Devices CSV",
                     "extensions": ".csv",
-                    "onChange": "PCTI_UICreateConfiguratorValues($id, $ImportFile, $AdditionalFile);"
+                    "onChange": "PCTI_UIImport($id, $ImportFile, $RadioFile, $SecurityFile);"
+                },
+                {
+                    "type": "SelectFile",
+                    "name": "SecurityFile",
+                    "caption": "Security Devices CSV",
+                    "extensions": ".csv",
+                    "onChange": "PCTI_UIImport($id, $ImportFile, $RadioFile, $SecurityFile);"
                 }
             ]
         }
@@ -28,6 +35,7 @@
     "actions": [
         {
             "type": "RowLayout",
+            "name": "AddImages",
             "items": [
                 {
                     "type": "Select",
@@ -38,7 +46,6 @@
                 {
                     "type": "Button",
                     "caption": "Add Images",
-                    "name": "AddImages",
                     "onClick": "PCTI_CreateImages($id, $Configurator, $ImageSet);"
                 }
             ]

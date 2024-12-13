@@ -9,7 +9,8 @@ declare(strict_types=1);
             parent::Create();
 
             $this->RegisterPropertyString('ImportFile', '');
-            $this->RegisterPropertyString('AdditionalFile', '');
+            $this->RegisterPropertyString('RadioFile', '');
+            $this->RegisterPropertyString('SecurityFile', '');
             $this->RegisterPropertyString('BaseID', '0000A000');
         }
 
@@ -28,29 +29,25 @@ declare(strict_types=1);
         public function GetConfigurationForm(): string
         {
             $data = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
-            // Add all directories in /imgs/ to select
-            $sets = scandir($this->getImageBasePath());
-            $imageSets = [];
-            foreach ($sets as $set) {
-                $dirName = basename($set);
-                
-                if (!in_array($dirName, ['.', '..'])) {
-                    $imageSets[] = [
-                        'value' => $dirName,
-                        'caption' => $dirName,
-                    ];
-                }
+
+            $specialMode = false;
+            $configurator = [];
+            if ($this->ReadPropertyString('ImportFile')) {
+                $specialMode = $this->createPCT14ConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator);
+            }
+            if ($this->ReadPropertyString('RadioFile')) {
+                $this->createRadioConfiguratorValues($this->ReadPropertyString('RadioFile'), $configurator);
+            }
+            if ($this->ReadPropertyString('SecurityFile')) {
+                $this->createSecurityConfiguratorValues($this->ReadPropertyString('SecurityFile'), $configurator);
             }
 
-            $data['actions'][0]['items'][0]['options'] = $imageSets;
-            $configurator = [];
-            if (($this->ReadPropertyString('ImportFile') != '')) {
-                $this->createXmlConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator);
-            }
-            if ($this->ReadPropertyString('AdditionalFile') != '') {
-                $this->createCsvConfiguratorValues($this->ReadPropertyString('AdditionalFile'), $configurator);
-            }
-            $data['actions'][1]['values'] =  $configurator;
+            $data['elements'][0]['items'][2]['visible'] = $specialMode;
+            $data['elements'][0]['items'][3]['visible'] = $specialMode;
+            $data['actions'][0]['items'][0]['options'] = $this->getImageSets();
+            $data['actions'][0]['visible'] = $specialMode;
+            $data['actions'][1]['values'] = $configurator;
+
             return json_encode($data);
         }
 
@@ -100,7 +97,7 @@ declare(strict_types=1);
                 IPS_SetHidden($mediaID, true);
             }
             $file = file_get_contents($imagePath);
-            
+
             IPS_SetMediaFile($mediaID, 'media' . DIRECTORY_SEPARATOR . $mediaID . '.' . pathinfo($imagePath, PATHINFO_EXTENSION), false);
             IPS_SetMediaContent($mediaID, base64_encode($file));
         }
@@ -124,41 +121,52 @@ declare(strict_types=1);
             return join(DIRECTORY_SEPARATOR, array_replace($dir, [count($dir) - 1 => 'imgs']));
         }
 
-        private function createXmlConfiguratorValues(String $File, &$configurator)
+        private function getImageSets()
+        {
+            // Add all directories in /imgs/ to select
+            $sets = scandir($this->getImageBasePath());
+            $imageSets = [];
+            foreach ($sets as $set) {
+                $dirName = basename($set);
+
+                if (!in_array($dirName, ['.', '..'])) {
+                    $imageSets[] = [
+                        'value' => $dirName,
+                        'caption' => $dirName,
+                    ];
+                }
+            }
+            return $imageSets;
+        }
+
+        private function createPCT14ConfiguratorValues(String $File, &$configurator)
         {
             if (strlen($File) == 0) {
-                return [];
+                return false;
             }
-            $xml = simplexml_load_string(base64_decode($File), null, LIBXML_NOCDATA);
 
+            $xml = simplexml_load_string(base64_decode($File), null, LIBXML_NOCDATA);
             if (!isset($xml->devices)) {
-                return [];
+                return false;
             }
 
             // we want to signal, that we needed to patch the XML file
             // and should open the dialog to allow downloading of the updated XML file
             $needUpdate = false;
 
-            // Check for any WeberHaus devices
-            $weberMode = false;
+            // Check for any special location patterns to enable special mode
+            $specialMode = false;
             foreach ($xml->devices->device as $device) {
                 foreach ($device->channels->channel as $channel) {
-                    if ($this->matchWeber(strval($device->description) ?: strval($channel['description']))) {
-                        $weberMode = true;
+                    if ($this->matchFullLocationPattern(strval($device->description) ?: strval($channel['description']))) {
+                        $specialMode = true;
                         break;
                     }
                 }
             }
-            if ($weberMode) {
-                $this->UpdateFormField('AddImages', 'visible', true);
-                $this->UpdateFormField('AdditionalFile', 'visible', true);
-            } else {
-                $this->UpdateFormField('AddImages', 'visible', false);
-                $this->UpdateFormField('AdditionalFile', 'visible', false);
-            }
 
             foreach ($xml->devices->device as $device) {
-                if ($this->createXMLDevice($configurator, $device, $weberMode)) {
+                if ($this->createXMLDevice($configurator, $device, $specialMode)) {
                     $needUpdate = true;
                 }
             }
@@ -167,31 +175,63 @@ declare(strict_types=1);
                 // Show dialog to allow downloading new XML file
             }
 
-            return $configurator;
+            return $specialMode;
         }
 
-        public function UICreateConfiguratorValues($XML, $CSV)
+        public function UIImport($ImportContent, $RadioContent, $SecurityContent)
         {
             $configurator = [];
-            $this->createXmlConfiguratorValues($XML, $configurator);
-            $this->createCsvConfiguratorValues($CSV, $configurator);
+            $specialMode = $this->createPCT14ConfiguratorValues($ImportContent, $configurator);
+            $this->createRadioConfiguratorValues($RadioContent, $configurator);
+            $this->createSecurityConfiguratorValues($SecurityContent, $configurator);
             $this->UpdateFormField('Configurator', 'values', json_encode($configurator));
+            $this->UpdateFormField('AddImages', 'visible', $specialMode);
+            $this->UpdateFormField('RadioFile', 'visible', $specialMode);
+            $this->UpdateFormField('SecurityFile', 'visible', $specialMode);
         }
 
-        private function createCsvConfiguratorValues(String $file, &$configurator)
+        private function createRadioConfiguratorValues(String $file, &$configurator)
         {
             if (strlen($file) == 0) {
-                return [];
+                return;
             }
+
             $fileContent = base64_decode($file);
             $lines = explode("\r\n", $fileContent);
-            // We don't need the header
+
+            // Skip the header and start with 1
             for ($i=1; $i < count($lines) ; $i++) {
                 $csvLine = str_getcsv($lines[$i], ';');
-                $this->createCsvDevices($configurator, $csvLine);
+
+                // If the device does not include all the data we can't create one
+                if (count($csvLine) < 4) {
+                    continue;
+                }
+
+                $this->createCsvDevices($configurator, $csvLine[0], $csvLine[1], $csvLine[2], $csvLine[3]);
             }
-            $csv = str_getcsv($fileContent, ';');
-            return $configurator;
+        }
+
+        private function createSecurityConfiguratorValues(String $file, &$configurator)
+        {
+            if (strlen($file) == 0) {
+                return;
+            }
+
+            $fileContent = base64_decode($file);
+            $lines = explode("\r\n", $fileContent);
+
+            // Skip the header and start with 1
+            for ($i=1; $i < count($lines) ; $i++) {
+                $csvLine = str_getcsv($lines[$i], ';');
+
+                // If the device does not include all the data we can't create one
+                if (count($csvLine) < 8) {
+                    continue;
+                }
+
+                $this->createCsvDevices($configurator, $csvLine[0], $csvLine[6], $csvLine[4], $csvLine[7]);
+            }
         }
 
         private function searchDevice($deviceID, $guid): int
@@ -205,13 +245,9 @@ declare(strict_types=1);
             return 0;
         }
 
-        private function createCsvDevices(&$configurator, &$device)
+        private function createCsvDevices(&$configurator, $type, $name, $deviceId, $location)
         {
-            // If the device does not include all the date we can't create one
-            if (count($device) < 4) {
-                return;
-            }
-            $matches = $this->matchCsv($device[3]);
+            $matches = $this->matchShortLocationPattern($location);
             $parentID = 0;
             if ($matches) {
                 $level = $this->getLevel($matches[0][1]);
@@ -244,31 +280,26 @@ declare(strict_types=1);
                 $parentID = 999;
             }
             $item = [
-                'address' => $device[2],
-                'name' => $device[1],
-                'type' => $device[0],
+                'address' => $deviceId,
+                'name' => $name,
+                'type' => $type,
                 'instanceID' => 0,
                 'parent' => $parentID,
-                'create' => $this->getCsvCreate($device)
             ];
-            $id = $device[2];
-            $item['instanceID'] = $this->searchDevice($device[2], $item['create'][0]['moduleID']);
-            if (is_int($id)) {
-                $item['status'] = sprintf("OK (%s%02X)", substr($this->ReadPropertyString('BaseID'), 0, 6), $id);
-            } else {
-                $item['status'] = sprintf("OK (%s)", $id);
+            $create = $this->getCsvCreate($type, $name, $deviceId);
+            if ($create) {
+                $item['create'] = $create;
+                $item['instanceID'] = $this->searchDevice($deviceId, $item['create'][0]['moduleID']);
             }
+            $item['status'] = sprintf("OK (%s)", $deviceId);
             $item['create'][0]['location'] = $location;
             $configurator[] = $item;
         }
 
-        private function getCsvCreate($device)
+        private function getCsvCreate($type, $name, $deviceId)
         {
-            $configuration = [
-                'DeviceID' => $device[2],
-            ];
             $guid = '';
-            switch ($device[0]) {
+            switch ($type) {
                 case 'FWS81':
                     $guid = '{432FF87E-4497-48D6-8ED9-EE7104F60501}';
                     break;
@@ -279,28 +310,36 @@ declare(strict_types=1);
 
                 case 'FRWB-rw':
                     $guid = '{D2F0769E-0BF7-804A-7982-22292DB7C268}';
+                    break;
 
-                break;
+                case 'FTS14EM':
+                    $guid = '{432FF87E-4497-48D6-8ED9-EE7104D50001}';
+                    break;
             }
-            return [
-                [
-                    'name' => $device[1],
-                    'moduleID' => $guid,
-                    'configuration' => $configuration,
-                ],
-                [
-                    'name' => 'FGW14 Gateway',
-                    // EnOcean Gateway
-                    'moduleID' => '{A52FEFE9-7858-4B8E-A96E-26E15CB944F7}',
-                    'configuration' => [
-                        'GatewayMode' => 4,
-                        'BaseID' => $this->ReadPropertyString('BaseID'),
+            if ($guid) {
+                return [
+                    [
+                        'name' => $name,
+                        'moduleID' => $guid,
+                        'configuration' => [
+                            'DeviceID' => $deviceId,
+                        ],
+                    ],
+                    [
+                        'name' => 'FGW14 Gateway',
+                        // EnOcean Gateway
+                        'moduleID' => '{A52FEFE9-7858-4B8E-A96E-26E15CB944F7}',
+                        'configuration' => [
+                            'GatewayMode' => 4,
+                            'BaseID' => $this->ReadPropertyString('BaseID'),
+                        ]
                     ]
-                ]
-            ];
+                ];
+            }
+            return null;
         }
 
-        private function createXMLDevice(&$configurator, &$device, $weberMode)
+        private function createXMLDevice(&$configurator, &$device, $specialMode)
         {
             if (!isset($device->channels->channel)) {
                 $configurator[] = [
@@ -319,8 +358,8 @@ declare(strict_types=1);
                 $deviceName = strval($channel['description']) ?: strval($device->description);
                 $parentID = 0;
                 $location = [];
-                if ($weberMode) {
-                    $matches = $this->matchWeber($deviceName);
+                if ($specialMode) {
+                    $matches = $this->matchFullLocationPattern($deviceName);
                     if ($matches) {
                         $level = $this->getLevel($matches[0][2]);
                         $room = $this->getRoom($matches[0][5]);
@@ -507,14 +546,14 @@ declare(strict_types=1);
             return false;
         }
 
-        private function matchWeber($string)
+        private function matchFullLocationPattern($string)
         {
-            preg_match_all('/(M|SD|L|R|W|T|F)(\d{1})(\d{2})(\d{1})(\d{2})\.(\d)/', $string, $matches, PREG_SET_ORDER, 0);
+            preg_match_all('/(M|SD|L)(\d{1})(\d{2})(\d{1})(\d{2})\.(\d)/', $string, $matches, PREG_SET_ORDER, 0);
             return $matches;
         }
 
 
-        private function matchCsv($string)
+        private function matchShortLocationPattern($string)
         {
             preg_match_all('/(\d{1})(\d{2})(\d{1})(\d{2})/', $string, $matches, PREG_SET_ORDER, 0);
             return $matches;

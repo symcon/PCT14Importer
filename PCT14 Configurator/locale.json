@@ -13,7 +13,8 @@
             "Add Images": "Bilder Hinzufügen",
             "Image Set": "Bildstil",
             "OK (Not required)": "OK (Nicht benötigt)",
-            "Additional Devices CSV": "Zusätzliche Geräte CSV"
+            "Radio Devices CSV": "Funkkomponenten CSV",
+            "Security Devices CSV": "Verschlussüberwachung CSV"
         }
     }
 }
