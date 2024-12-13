@@ -278,7 +278,7 @@ declare(strict_types=1);
                     break;
 
                 case 'FRWB-rw':
-                    $guid =  '{D2F0769E-0BF7-804A-7982-22292DB7C268}';
+                    $guid = '{D2F0769E-0BF7-804A-7982-22292DB7C268}';
 
                 break;
             }
