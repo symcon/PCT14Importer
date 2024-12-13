@@ -3,13 +3,6 @@
 declare(strict_types=1);
     class PCT14Configurator extends IPSModule
     {
-        private const WEBER_DEVICES = [
-            'SD' => 'Steckdose',
-            'M' => 'Rolladen',
-            'L' => 'Licht',
-            'R' => 'Rauchmelder'
-        ];
-
         public function Create()
         {
             //Never delete this line!
