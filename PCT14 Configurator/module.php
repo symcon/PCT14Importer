@@ -30,13 +30,6 @@ declare(strict_types=1);
         {
             //Never delete this line!
             parent::ApplyChanges();
-
-            if ($this->ReadPropertyString('ImportFile') != '') {
-                $configurator = $this->createXmlConfiguratorValues($this->ReadPropertyString('ImportFile'));
-                if ($this->ReadPropertyString('AdditionalFile') != '') {
-                    $this->createCsvConfiguratorValues($this->ReadPropertyString('AdditionalFile'), $configurator);
-                }
-            }
         }
 
         public function GetConfigurationForm(): string
@@ -57,13 +50,14 @@ declare(strict_types=1);
             }
 
             $data['actions'][0]['items'][0]['options'] = $imageSets;
+            $configurator = [];
             if (($this->ReadPropertyString('ImportFile') != '')) {
-                $configurator = $this->createXmlConfiguratorValues($this->ReadPropertyString('ImportFile'));
-                if ($this->ReadPropertyString('AdditionalFile') != '') {
-                    $this->createCsvConfiguratorValues($this->ReadPropertyString('AdditionalFile'), $configurator);
-                }
-                $data['actions'][1]['values'] =  $configurator;
+                $this->createXmlConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator);
             }
+            if ($this->ReadPropertyString('AdditionalFile') != '') {
+                $this->createCsvConfiguratorValues($this->ReadPropertyString('AdditionalFile'), $configurator);
+            }
+            $data['actions'][1]['values'] =  $configurator;
             return json_encode($data);
         }
 
@@ -137,7 +131,7 @@ declare(strict_types=1);
             return join(DIRECTORY_SEPARATOR, array_replace($dir, [count($dir) - 1 => 'imgs']));
         }
 
-        private function createXmlConfiguratorValues(String $File)
+        private function createXmlConfiguratorValues(String $File, &$configurator)
         {
             if (strlen($File) == 0) {
                 return [];
@@ -151,8 +145,6 @@ declare(strict_types=1);
             // we want to signal, that we needed to patch the XML file
             // and should open the dialog to allow downloading of the updated XML file
             $needUpdate = false;
-
-            $configurator = [];
 
             // Check for any WeberHaus devices
             $weberMode = false;
@@ -187,13 +179,17 @@ declare(strict_types=1);
 
         public function UICreateConfiguratorValues($XML, $CSV)
         {
-            $configurator = $this->createXmlConfiguratorValues($XML);
+            $configurator = [];
+            $this->createXmlConfiguratorValues($XML, $configurator);
             $this->createCsvConfiguratorValues($CSV, $configurator);
             $this->UpdateFormField('Configurator', 'values', json_encode($configurator));
         }
 
         private function createCsvConfiguratorValues(String $file, &$configurator)
         {
+            if (strlen($file) == 0) {
+                return [];
+            }
             $fileContent = base64_decode($file);
             $lines = explode("\r\n", $fileContent);
             // We don't need the header
