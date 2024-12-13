@@ -3,18 +3,13 @@
 declare(strict_types=1);
     class PCT14Configurator extends IPSModule
     {
-        private const WEBER_DEVICES = [
-            'SD' => 'Steckdose',
-            'M' => 'Rolladen',
-            'L' => 'Licht'
-        ];
-
         public function Create()
         {
             //Never delete this line!
             parent::Create();
 
             $this->RegisterPropertyString('ImportFile', '');
+            $this->RegisterPropertyString('AdditionalFile', '');
             $this->RegisterPropertyString('BaseID', '0000A000');
         }
 
@@ -28,10 +23,6 @@ declare(strict_types=1);
         {
             //Never delete this line!
             parent::ApplyChanges();
-
-            if ($this->ReadPropertyString('ImportFile') != '') {
-                $this->UIImport($this->ReadPropertyString('ImportFile'));
-            }
         }
 
         public function GetConfigurationForm(): string
@@ -52,9 +43,14 @@ declare(strict_types=1);
             }
 
             $data['actions'][0]['items'][0]['options'] = $imageSets;
+            $configurator = [];
             if (($this->ReadPropertyString('ImportFile') != '')) {
-                $data['actions'][1]['values'] = $this->createConfiguratorValues($this->ReadPropertyString('ImportFile'));
+                $this->createXmlConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator);
             }
+            if ($this->ReadPropertyString('AdditionalFile') != '') {
+                $this->createCsvConfiguratorValues($this->ReadPropertyString('AdditionalFile'), $configurator);
+            }
+            $data['actions'][1]['values'] =  $configurator;
             return json_encode($data);
         }
 
@@ -122,12 +118,13 @@ declare(strict_types=1);
             return false;
         }
 
-        private function getImageBasePath(){
+        private function getImageBasePath()
+        {
             $dir = explode(DIRECTORY_SEPARATOR, __DIR__);
             return join(DIRECTORY_SEPARATOR, array_replace($dir, [count($dir) - 1 => 'imgs']));
         }
 
-        private function createConfiguratorValues(String $File)
+        private function createXmlConfiguratorValues(String $File, &$configurator)
         {
             if (strlen($File) == 0) {
                 return [];
@@ -142,8 +139,6 @@ declare(strict_types=1);
             // and should open the dialog to allow downloading of the updated XML file
             $needUpdate = false;
 
-            $configurator = [];
-
             // Check for any WeberHaus devices
             $weberMode = false;
             foreach ($xml->devices->device as $device) {
@@ -156,12 +151,14 @@ declare(strict_types=1);
             }
             if ($weberMode) {
                 $this->UpdateFormField('AddImages', 'visible', true);
+                $this->UpdateFormField('AdditionalFile', 'visible', true);
             } else {
                 $this->UpdateFormField('AddImages', 'visible', false);
+                $this->UpdateFormField('AdditionalFile', 'visible', false);
             }
 
             foreach ($xml->devices->device as $device) {
-                if ($this->createDevice($configurator, $device, $weberMode)) {
+                if ($this->createXMLDevice($configurator, $device, $weberMode)) {
                     $needUpdate = true;
                 }
             }
@@ -173,9 +170,28 @@ declare(strict_types=1);
             return $configurator;
         }
 
-        public function UIImport($File)
+        public function UICreateConfiguratorValues($XML, $CSV)
         {
-            $this->UpdateFormField('Configurator', 'values', json_encode($this->createConfiguratorValues($File)));
+            $configurator = [];
+            $this->createXmlConfiguratorValues($XML, $configurator);
+            $this->createCsvConfiguratorValues($CSV, $configurator);
+            $this->UpdateFormField('Configurator', 'values', json_encode($configurator));
+        }
+
+        private function createCsvConfiguratorValues(String $file, &$configurator)
+        {
+            if (strlen($file) == 0) {
+                return [];
+            }
+            $fileContent = base64_decode($file);
+            $lines = explode("\r\n", $fileContent);
+            // We don't need the header
+            for ($i=1; $i < count($lines) ; $i++) {
+                $csvLine = str_getcsv($lines[$i], ';');
+                $this->createCsvDevices($configurator, $csvLine);
+            }
+            $csv = str_getcsv($fileContent, ';');
+            return $configurator;
         }
 
         private function searchDevice($deviceID, $guid): int
@@ -189,7 +205,102 @@ declare(strict_types=1);
             return 0;
         }
 
-        private function createDevice(&$configurator, &$device, $weberMode)
+        private function createCsvDevices(&$configurator, &$device)
+        {
+            // If the device does not include all the date we can't create one
+            if (count($device) < 4) {
+                return;
+            }
+            $matches = $this->matchCsv($device[3]);
+            $parentID = 0;
+            if ($matches) {
+                $level = $this->getLevel($matches[0][1]);
+                $room = $this->getRoom($matches[0][4]);
+                $location = [$level[0], $room[0]];
+                // Add level
+                if (!$this->nodeExists($level[1], $configurator)) {
+                    $configurator[] = [
+                        'name' => $level[0],
+                        'id' => $level[1],
+                    ];
+                }
+                $parentID = $level[1] . $room[1];
+                // Add room
+                if (!$this->nodeExists($parentID, $configurator)) {
+                    $configurator[] = [
+                        'name' => $room[0],
+                        'parent' => $level[1],
+                        'id' => $parentID,
+                    ];
+                }
+            } else {
+                if (!$this->nodeExists(999, $configurator)) {
+                    $configurator[] = [
+                        'name' => $this->getLevel(999)[0],
+                        'id' => 999,
+                    ];
+                }
+                $location = [$this->getLevel(999)[0]];
+                $parentID = 999;
+            }
+            $item = [
+                'address' => $device[2],
+                'name' => $device[1],
+                'type' => $device[0],
+                'instanceID' => 0,
+                'parent' => $parentID,
+                'create' => $this->getCsvCreate($device)
+            ];
+            $id = $device[2];
+            $item['instanceID'] = $this->searchDevice($device[2], $item['create'][0]['moduleID']);
+            if (is_int($id)) {
+                $item['status'] = sprintf("OK (%s%02X)", substr($this->ReadPropertyString('BaseID'), 0, 6), $id);
+            } else {
+                $item['status'] = sprintf("OK (%s)", $id);
+            }
+            $item['create'][0]['location'] = $location;
+            $configurator[] = $item;
+        }
+
+        private function getCsvCreate($device)
+        {
+            $configuration = [
+                'DeviceID' => $device[2],
+            ];
+            $guid = '';
+            switch ($device[0]) {
+                case 'FWS81':
+                    $guid = ' {432FF87E-4497-48D6-8ED9-EE7104F60501}';
+                    break;
+
+                case 'FBH55ESB':
+                    $guid = '{432FF87E-4497-48D6-8ED9-EE7104A50801}';
+                    break;
+
+                case 'FRWB-rw':
+                    $guid =  '{D2F0769E-0BF7-804A-7982-22292DB7C268}';
+
+                break;
+            }
+            return [
+                [
+                    'name' => $device[1],
+                    'moduleID' => $guid,
+                    'configuration' => $configuration,
+                ],
+                [
+                    'name' => 'FGW14 Gateway',
+                    // EnOcean Gateway
+                    'moduleID' => '{A52FEFE9-7858-4B8E-A96E-26E15CB944F7}',
+                    'configuration' => [
+                        'GatewayMode' => 4,
+                        'BaseID' => $this->ReadPropertyString('BaseID'),
+                    ]
+                ]
+            ];
+        }
+
+        private function createXMLDevice(&$configurator, &$device, $weberMode)
         {
             if (!isset($device->channels->channel)) {
                 $configurator[] = [
@@ -386,7 +497,6 @@ declare(strict_types=1);
             return $needUpdateDevice;
         }
 
-        // maybe use array search
         private function nodeExists($id, $configurator)
         {
             foreach ($configurator as $device) {
@@ -400,6 +510,13 @@ declare(strict_types=1);
         private function matchWeber($string)
         {
             preg_match_all('/(M|SD|L|R|W|T|F)(\d{1})(\d{2})(\d{1})(\d{2})\.(\d)/', $string, $matches, PREG_SET_ORDER, 0);
+            return $matches;
+        }
+
+
+        private function matchCsv($string)
+        {
+            preg_match_all('/(\d{1})(\d{2})(\d{1})(\d{2})/', $string, $matches, PREG_SET_ORDER, 0);
             return $matches;
         }
 

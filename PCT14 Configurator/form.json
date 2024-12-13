@@ -8,12 +8,19 @@
                     "name": "ImportFile",
                     "caption": "PCT14 XML Export",
                     "extensions": ".xml",
-                    "onChange": "PCTI_UIImport($id, $ImportFile);"
+                    "onChange": "PCTI_UICreateConfiguratorValues($id, $ImportFile, $AdditionalFile);"
                 },
                 {
                     "type": "ValidationTextBox",
                     "name": "BaseID",
                     "caption": "BaseID"
+                },
+                {
+                    "type": "SelectFile",
+                    "name": "AdditionalFile",
+                    "caption": "Additional Devices CSV",
+                    "extensions": ".csv",
+                    "onChange": "PCTI_UICreateConfiguratorValues($id, $ImportFile, $AdditionalFile);"
                 }
             ]
         }
