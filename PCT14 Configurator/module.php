@@ -230,6 +230,11 @@ declare(strict_types=1);
                     continue;
                 }
 
+                // We need the name and location to create the device
+                if (!$csvLine[6] || !$csvLine[7]) {
+                    continue;
+                }
+
                 $this->createCsvDevices($configurator, $csvLine[0], $csvLine[6], $csvLine[4], $csvLine[7]);
             }
         }
