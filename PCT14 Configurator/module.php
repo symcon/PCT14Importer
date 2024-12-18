@@ -208,6 +208,11 @@ declare(strict_types=1);
                     continue;
                 }
 
+                // Skip empty lines
+                if (!$csvLine[0] || !$csvLine[1] || !$csvLine[2] || !$csvLine[3]) {
+                    continue;
+                }
+
                 $this->createCsvDevices($configurator, $csvLine[0], $csvLine[1], $csvLine[2], $csvLine[3]);
             }
         }
@@ -304,6 +309,7 @@ declare(strict_types=1);
         private function getCsvCreate($type, $name, $deviceId)
         {
             $guid = '';
+            $mode = 0; /* Sensor */
             switch ($type) {
                 case 'FWS81':
                     $guid = '{432FF87E-4497-48D6-8ED9-EE7104F60501}';
@@ -320,15 +326,35 @@ declare(strict_types=1);
                 case 'FTS14EM':
                     $guid = '{432FF87E-4497-48D6-8ED9-EE7104D50001}';
                     break;
+                case 'FIUS55E':
+                case 'FIUS61':
+                    $guid = '{FD46DA33-724B-489E-A931-C00BFD0166C9}';
+                    $mode = 1; /* Actor */
+                    break;
             }
             if ($guid) {
+                $generateNewID = function () {
+                    return 1;
+                };
+
+                switch ($mode) {
+                    case 0: /* Sensor */
+                        $configuration = [
+                            'DeviceID' => $deviceId,
+                        ];
+                        break;
+                    case 1: /* Actor */
+                        $configuration = [
+                            'DeviceID' => $generateNewID(),
+                            'ReturnID' => $deviceId,
+                        ];
+                        break;
+                }
                 return [
                     [
                         'name' => $name,
                         'moduleID' => $guid,
-                        'configuration' => [
-                            'DeviceID' => $deviceId,
-                        ],
+                        'configuration' => $configuration,
                     ],
                     [
                         'name' => 'FGW14 Gateway',
