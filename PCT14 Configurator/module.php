@@ -510,8 +510,10 @@ declare(strict_types=1);
                             ];
                         }
                         break;
+                    case 15: //FHK14
                     case 24: //F4HK14
-                        $id = $searchDataEntries(64);
+                        // We may want to search for 64 and use this as an override value
+                        $id = $searchDataEntries(65);
                         if ($id) {
                             $guid = "{7C25F5A6-ED34-4FB4-8A6D-D49DFE636CDC}";
                             $configuration = [
