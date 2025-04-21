@@ -615,7 +615,7 @@ declare(strict_types=1);
 
         private function matchFullLocationPattern($string)
         {
-            preg_match_all('/(M|SD|L)(\d{1})(\d{2})(\d{1})(\d{2})\.(\d)/', $string, $matches, PREG_SET_ORDER, 0);
+            preg_match_all('/(M|SD|L|ZV)(\d{1})(\d{2})(\d{1})(\d{2})\.{0,1}(\d*)/', $string, $matches, PREG_SET_ORDER, 0);
             return $matches;
         }
 
