@@ -499,6 +499,7 @@ declare(strict_types=1);
                                 'ReturnID' => sprintf('%08X', $id),
                             ];
                         }
+                        // FIXME: Also check that "Bestätigungstelegramm mit Dimmer" is also ON!
                         break;
                     case 6: // FSB14
                         $id = $searchDataEntries(31);
