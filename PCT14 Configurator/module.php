@@ -29,11 +29,17 @@ declare(strict_types=1);
         public function GetConfigurationForm(): string
         {
             $data = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
-
             $specialMode = false;
             $configurator = [];
+            $updateCount = 0;
+            $updateContent = "";
             if ($this->ReadPropertyString('ImportFile')) {
-                $specialMode = $this->createPCT14ConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator);
+                $specialMode = $this->createPCT14ConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator, $updateCount, $updateContent);
+                if ($updateCount) {
+                    $data['actions'][2]['visible'] = true;
+                    $data['actions'][2]['popup']['items'][0]['caption'] = sprintf($this->Translate($data['actions'][2]['popup']['items'][0]['caption']), $updateCount);
+                    $data['actions'][2]['popup']['items'][1]['onClick'] = $updateContent;
+                }
             }
             if ($this->ReadPropertyString('RadioFile')) {
                 $this->createRadioConfiguratorValues($this->ReadPropertyString('RadioFile'), $configurator);
@@ -139,7 +145,7 @@ declare(strict_types=1);
             return $imageSets;
         }
 
-        private function createPCT14ConfiguratorValues(String $File, &$configurator)
+        private function createPCT14ConfiguratorValues(String $File, &$configurator, &$updateCount, &$updateContent)
         {
             if (strlen($File) == 0) {
                 return false;
@@ -152,7 +158,9 @@ declare(strict_types=1);
 
             // we want to signal, that we needed to patch the XML file
             // and should open the dialog to allow downloading of the updated XML file
-            $needUpdate = false;
+            // initialize with zero and no content
+            $updateCount = 0;
+            $updateContent = "";
 
             // Check for any special location patterns to enable special mode
             $specialMode = false;
@@ -167,12 +175,19 @@ declare(strict_types=1);
 
             foreach ($xml->devices->device as $device) {
                 if ($this->createXMLDevice($configurator, $device, $specialMode)) {
-                    $needUpdate = true;
+                    $updateCount++;
                 }
             }
 
-            if ($needUpdate) {
-                // Show dialog to allow downloading new XML file
+            // Show dialog to allow downloading new XML file
+            if ($updateCount > 0) {
+                // See: https://stackoverflow.com/a/16282331
+                // Workaround for formatOutput to properly work
+                $dom = new DOMDocument("1.0");
+                $dom->preserveWhiteSpace = false;
+                $dom->formatOutput = true;
+                $dom->loadXML($xml->asXML());
+                $updateContent = "echo 'data:text/xml;base64," . base64_encode($dom->saveXML()) . "';";
             }
 
             return $specialMode;
@@ -181,13 +196,21 @@ declare(strict_types=1);
         public function UIImport($ImportContent, $RadioContent, $SecurityContent)
         {
             $configurator = [];
-            $specialMode = $this->createPCT14ConfiguratorValues($ImportContent, $configurator);
+            $updateCount = 0;
+            $updateContent = "";
+            $specialMode = $this->createPCT14ConfiguratorValues($ImportContent, $configurator, $updateCount, $updateContent);
             $this->createRadioConfiguratorValues($RadioContent, $configurator);
             $this->createSecurityConfiguratorValues($SecurityContent, $configurator);
             $this->UpdateFormField('Configurator', 'values', json_encode($configurator));
             $this->UpdateFormField('AddImages', 'visible', $specialMode);
             $this->UpdateFormField('RadioFile', 'visible', $specialMode);
             $this->UpdateFormField('SecurityFile', 'visible', $specialMode);
+            if ($updateCount > 0) {
+                $this->UpdateFormField('DownloadAlert', 'visible', true);
+                $data = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
+                $this->UpdateFormField('DownloadHint', 'caption', sprintf($this->Translate($data['actions'][2]['popup']['items'][0]['caption']), $updateCount));
+                $this->UpdateFormField('DownloadButton', 'onClick', $updateContent);
+            }
         }
 
         private function createRadioConfiguratorValues(String $file, &$configurator)
@@ -430,6 +453,7 @@ declare(strict_types=1);
                     'instanceID' => 0,
                     'parent' => $parentID,
                 ];
+
                 // add 'create' block if we support the device
                 $guid = '';
                 $configuration = new stdClass();
@@ -456,30 +480,86 @@ declare(strict_types=1);
                 // last 2 characters of the entry->entry_id as the address. entry->entry_id needs
                 // to be reversed byte-wise and converted to hex
                 // if no, create the entry and set the needUpdate flag
-                $searchDataEntries = function ($function) use (&$device, $channel, &$needUpdate, $reverseBytes) {
+                $searchDataEntries = function ($function, $minEntryNumber, $justSearch) use(&$device, $channel, &$needUpdate, $reverseBytes, $item) {
+                    // This is the device id and is encoded as a reversed bytes value
+                    $id = hexdec($this->ReadPropertyString("BaseID")) + $item['address'];
+
+                    $nextEntryNumber = $minEntryNumber;
                     foreach ($device->data->rangeofid->entry as $entry) {
                         // entry_channel is a bitmask. Make some shifting magic
-                        if (intval($entry->entry_channel) == (1 << (intval($channel['channelnumber']) - 1))) {
-                            if (intval($entry->entry_function) == $function) {
+                        if (intval($entry->entry_channel) === (1 << (intval($channel['channelnumber']) - 1))) {
+                            if (intval($entry->entry_function) === $function) {
                                 $entryIdReversed = $reverseBytes($entry->entry_id);
+                                // for just searching, we want to return the full id
+                                if ($justSearch) {
+                                    return $entryIdReversed;
+                                }
+                                // for normal searching, we want to return the last 2 bytes
+                                // as device id if the baseID matches
                                 $entryIdHex = sprintf("%08X", $entryIdReversed);
                                 if (substr($this->ReadPropertyString("BaseID"), 0, 6) == substr($entryIdHex, 0, 6)) {
+                                    // we need to update the device id part of the entry_id
+                                    if (($entryIdReversed & 0xFF) != $item['address']) {
+                                        $entry->entry_id = $reverseBytes($id);
+                                        $needUpdate = true;
+                                    }
                                     return $entryIdReversed & 0xFF;
                                 }
                             }
                         }
+                        // entry_number is always ordered, and we need to find the next gap
+                        // to be able to create a new entry if needed
+                        if (intval($entry->entry_number) === $nextEntryNumber) {
+                            $nextEntryNumber++;
+                        }
                     }
-                    // FIXME: Add function to data entries
+
+                    // return zero if we just wanted to search for a valid entry
+                    if ($justSearch) {
+                        return 0;
+                    }
+
+                    // create new entry
+                    $entry = $device->data->rangeofid->addChild('entry');
+                    $entry->addAttribute('maxnumberofcharacter', "47");
+                    $entry->addAttribute('description', "");
+
+                    // This is either the minimal number for the function group
+                    // Or the next number in the list (max + 1)
+                    // We may want to add a boundary check for function groups that are limited
+                    $entry->addChild("entry_number", strval($nextEntryNumber));
+
+                    $entry->addChild("entry_id", strval($reverseBytes($id)));
+                    $entry->addChild("entry_function", strval($function));
+                    $entry->addChild("entry_button", "0");
+                    $entry->addChild("entry_channel", strval(1 << (intval($channel['channelnumber']) - 1)));
+                    $entry->addChild("entry_value", "0");
+
+                    // update number of entries
+                    $device->data->rangeofid->attributes()->numberofentries = strval(count($device->data->rangeofid->entry));
+
+                    // set need update flag to true
                     $needUpdate = true;
-                    return 0;
+
+                    return $item['address'];
                 };
 
                 $id = 0;
                 switch (intval($device->header->devicetype)) {
                     case 1: // FSR14-4x
-                    case 2: // FSR14-2x
                     case 9: // F4SR14-LED
-                        $id = $searchDataEntries(51);
+                        $id = $searchDataEntries(51, 5, false);
+                        if ($id) {
+                            $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
+                            $configuration = [
+                                'DeviceID' => $id,
+                                'ReturnID' => sprintf('%08X', $id),
+                                'Mode' => 1,
+                            ];
+                        }
+                        break;
+                    case 2: // FSR14-2x
+                        $id = $searchDataEntries(51, 3, false);
                         if ($id) {
                             $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
                             $configuration = [
@@ -491,7 +571,7 @@ declare(strict_types=1);
                         break;
                     case 4: // FUD14
                     case 5: // FUD14/800W
-                        $id = $searchDataEntries(32);
+                        $id = $searchDataEntries(32, 5, false);
                         if ($id) {
                             $guid = "{48909406-A2B9-4990-934F-28B9A80CD079}";
                             $configuration = [
@@ -502,7 +582,7 @@ declare(strict_types=1);
                         // FIXME: Also check that "Bestätigungstelegramm mit Dimmer" is also ON!
                         break;
                     case 6: // FSB14
-                        $id = $searchDataEntries(31);
+                        $id = $searchDataEntries(31, 2, false);
                         if ($id) {
                             $guid = "{1463CAE7-C7D5-4623-8539-DD7ADA6E92A9}";
                             $configuration = [
@@ -513,14 +593,15 @@ declare(strict_types=1);
                         break;
                     case 15: //FHK14
                     case 24: //F4HK14
-                        // We may want to search for 64 and use this as an override value
-                        $id = $searchDataEntries(65);
+                        $thermostatId = $searchDataEntries(64, 1, true);
+                        $id = $searchDataEntries(65, 9, false);
                         if ($id) {
                             $guid = "{7C25F5A6-ED34-4FB4-8A6D-D49DFE636CDC}";
                             $configuration = [
                                 'DeviceID' => $id,
                                 'ReturnID' => sprintf('%08X', $id),
-                                'Mode' => 1,
+                                'Mode' => 3, /* GFVS with Thermostat */
+                                'ThermostatID' => sprintf('%08X', $thermostatId),
                             ];
                         }
                         break;

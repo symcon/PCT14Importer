@@ -83,6 +83,27 @@
                 "direction": "ascending"
             },
             "values": []
+        },
+        {
+            "type": "PopupAlert",
+            "name": "DownloadAlert",
+            "popup": {
+                "items": [
+                    {
+                        "type": "Label",
+                        "name": "DownloadHint",
+                        "caption": "%s devices need to be updated!\n\nPlease download the XML file, import into Eltako PCT14 and programm those devices.\nAfterwards export the new XML from Eltako PCT14 and import it into this configurator."
+                    },
+                    {
+                        "type": "Button",
+                        "name": "DownloadButton",
+                        "caption": "Download",
+                        "download": "pct14.xml",
+                        "onClick": "echo 'data:text/xml;base64,PHhtbD48L3htbD4=';"
+                    }
+                ]
+            },
+            "visible": false
         }
     ],
     "status": []
