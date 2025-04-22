@@ -593,15 +593,15 @@ declare(strict_types=1);
                         break;
                     case 15: //FHK14
                     case 24: //F4HK14
-                        $sensorId = $searchDataEntries(64, 1, true);
+                        $thermostatId = $searchDataEntries(64, 1, true);
                         $id = $searchDataEntries(65, 9, false);
                         if ($id) {
                             $guid = "{7C25F5A6-ED34-4FB4-8A6D-D49DFE636CDC}";
                             $configuration = [
                                 'DeviceID' => $id,
                                 'ReturnID' => sprintf('%08X', $id),
-                                'Mode' => 2, /* GFVS with Thermostat */
-                                'SensorID' => sprintf('%08X', $sensorId),
+                                'Mode' => 3, /* GFVS with Thermostat */
+                                'ThermostatID' => sprintf('%08X', $thermostatId),
                             ];
                         }
                         break;
