@@ -499,7 +499,7 @@ declare(strict_types=1);
                                 $entryIdHex = sprintf("%08X", $entryIdReversed);
                                 if (substr($this->ReadPropertyString("BaseID"), 0, 6) == substr($entryIdHex, 0, 6)) {
                                     // we need to update the device id part of the entry_id
-                                    if ($entryIdReversed & 0xFF != $item['address']) {
+                                    if (($entryIdReversed & 0xFF) != $item['address']) {
                                         $entry->entry_id = $reverseBytes($id);
                                         $needUpdate = true;
                                     }
