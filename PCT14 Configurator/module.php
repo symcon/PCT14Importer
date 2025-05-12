@@ -730,7 +730,7 @@ declare(strict_types=1);
                 case 36:
                     return ['Zimmer 1', 36];
                 case 46:
-                    return ['Terasse', 46];
+                    return ['Terrasse', 46];
                 case 52:
                     return ['Loggia', 52];
                 case 67:
