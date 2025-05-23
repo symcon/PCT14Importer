@@ -166,7 +166,8 @@ declare(strict_types=1);
             $specialMode = false;
             foreach ($xml->devices->device as $device) {
                 foreach ($device->channels->channel as $channel) {
-                    if ($this->matchFullLocationPattern(strval($device->description) ?: strval($channel['description']))) {
+                    $deviceName = strval($channel['description']) ?: strval($device->description);
+                    if ($this->matchFullLocationPattern($deviceName)) {
                         $specialMode = true;
                         break;
                     }
