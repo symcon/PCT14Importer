@@ -419,7 +419,26 @@ declare(strict_types=1);
                         $level = $this->getLevel($matches[0][2]);
                         $room = $this->getRoom($matches[0][5]);
                         $location = [$level[0], $room[0]];
-                        $deviceName = trim(str_replace([$matches[0][0], str_replace('/', '_', $room[0]), $level[0], 'NOTSTROM'], '', $deviceName));
+                        $deviceName = trim(str_replace([$matches[0][0], str_replace('/', '_', $room[0]), $level[0], 'NOTSTROM', "UG", "EG", "OG", "DG"], '', $deviceName));
+                        if (!$deviceName) {
+                            switch($matches[0][1]) {
+                                case 'M':
+                                    $deviceName = "Rollladen";
+                                    break;
+                                case 'SD':
+                                    $deviceName = "Steckdose";
+                                    break;
+                                case 'L':
+                                    $deviceName = "Licht";
+                                    break;
+                                case 'ZV':
+                                    $deviceName = "Thermostat";
+                                    break;
+                                default:
+                                    $deviceName = "Gerät";
+                                    break;
+                            }
+                        }
                         if (!$this->nodeExists($level[1], $configurator)) {
                             $configurator[] = [
                                 'name' => $level[0],
@@ -732,6 +751,16 @@ declare(strict_types=1);
                     return ['Ankleide', 35];
                 case 36:
                     return ['Zimmer 1', 36];
+                case 37:
+                    return ['Zimmer 2', 37];
+                case 38:
+                    return ['Zimmer 3', 38];
+                case 39:
+                    return ['Zimmer 4', 39];
+                case 40:
+                    return ['Zimmer 5', 40];
+                case 41:
+                    return ['Zimmer 6', 41];
                 case 46:
                     return ['Terrasse', 46];
                 case 52:
