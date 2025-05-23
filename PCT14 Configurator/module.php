@@ -685,7 +685,9 @@ declare(strict_types=1);
                 case 3:
                     return ['Obergeschoss', 3];
                 case 4:
-                    return ['Dachgeschoss', 4];
+                    return ['Obergeschoss 2', 4];
+                case 5:
+                    return ['Dachgeschoss', 5];
                 default:
                     return ['Sonstige', 999];
             }
