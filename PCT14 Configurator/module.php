@@ -416,12 +416,12 @@ declare(strict_types=1);
                 if ($specialMode) {
                     $matches = $this->matchFullLocationPattern($deviceName);
                     if ($matches) {
-                        $level = $this->getLevel($matches[0][2]);
-                        $room = $this->getRoom($matches[0][5]);
+                        $level = $this->getLevel($matches['level']);
+                        $room = $this->getRoom($matches['room']);
                         $location = [$level[0], $room[0]];
-                        $deviceName = trim(str_replace([$matches[0][0], str_replace('/', '_', $room[0]), $level[0], 'NOTSTROM', "UG", "EG", "OG", "DG"], '', $deviceName));
+                        $deviceName = trim(str_replace([$matches["match"], str_replace('/', '_', $room[0]), $level[0], 'NOTSTROM', "UG", "EG", "OG", "DG"], '', $deviceName));
                         if (!$deviceName) {
-                            switch($matches[0][1]) {
+                            switch($matches['type']) {
                                 case 'M':
                                     $deviceName = "Rollladen";
                                     break;
@@ -681,20 +681,30 @@ declare(strict_types=1);
             return false;
         }
 
-        // Weberhaus Schreibweise
         private function matchFullLocationPattern($string)
         {
+            // WeberHaus
             preg_match_all('/(M|SD|L|ZV)(\d{1})(\d{2})(\d{1})(\d{2})\.{0,1}(\d*)/', $string, $matches, PREG_SET_ORDER, 0);
-            return $matches;
-        }
-
-        // Rosenlehner Schreibweise
-        private function matchFullLocationPatternRL($string)
-        {
+            if ($matches) {
+                return [
+                    "match" => $matches[0][0],
+                    "level" => $matches[0][2],
+                    "room" => $matches[0][5],
+                    "type" => $matches[0][1],
+                ];
+            }
+            // Rosenlehner
             preg_match_all('/(\d{1})(\d{2})(M|SD|L|ZV)(\d{1,3})\.{0,1}(\d*)/', $string, $matches, PREG_SET_ORDER, 0);
-            return $matches;
+            if ($matches) {
+                return [
+                    "match" => $matches[0][0],
+                    "level" => $matches[0][1],
+                    "room" => $matches[0][2],
+                    "type" => $matches[0][3],
+                ];
+            }
+            return false;
         }
-
 
         private function matchShortLocationPattern($string)
         {
