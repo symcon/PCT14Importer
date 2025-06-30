@@ -681,9 +681,17 @@ declare(strict_types=1);
             return false;
         }
 
+        // Weberhaus Schreibweise
         private function matchFullLocationPattern($string)
         {
             preg_match_all('/(M|SD|L|ZV)(\d{1})(\d{2})(\d{1})(\d{2})\.{0,1}(\d*)/', $string, $matches, PREG_SET_ORDER, 0);
+            return $matches;
+        }
+
+        // Rosenlehner Schreibweise
+        private function matchFullLocationPatternRL($string)
+        {
+            preg_match_all('/(\d{1})(\d{2})(M|SD|L|ZV)(\d{1,3})\.{0,1}(\d*)/', $string, $matches, PREG_SET_ORDER, 0);
             return $matches;
         }
 
@@ -717,6 +725,12 @@ declare(strict_types=1);
             switch ($value) {
                 case 1:
                     return ['Hauseingang', 1];
+                case 2:
+                    return ['WF', 2];
+                case 3:
+                    return ['Treppenhaus', 3];
+                case 4:
+                    return ['Aufzug', 4];
                 case 5:
                     return ['Diele', 5];
                 case 6:
@@ -727,12 +741,22 @@ declare(strict_types=1);
                     return ['Empore', 8];
                 case 11:
                     return ['WC', 11];
+                case 12:
+                    return ['WC 2', 12];
                 case 13:
                     return ['Dusch-WC', 13];
+                case 14:
+                    return ['Dusch-WC 2', 14];
                 case 15:
                     return ['Bad', 15];
+                case 16:
+                    return ['Bad 2', 16];
                 case 17:
                     return ['Küche', 17];
+                case 18:
+                    return ['Küche 2', 17];
+                case 21:
+                    return ['Speisekammer', 21];
                 case 22:
                     return ['Abstellraum', 22];
                 case 23:
@@ -743,6 +767,12 @@ declare(strict_types=1);
                     return ['Technikraum', 25];
                 case 26:
                     return ['Garage', 26];
+                case 27:
+                    return ['Carport', 27];
+                case 31:
+                    return ['Essen', 31];
+                case 32:
+                    return ['Wohnen', 32];
                 case 33:
                     return ['Essen/Wohnen', 33];
                 case 34:
@@ -763,8 +793,40 @@ declare(strict_types=1);
                     return ['Zimmer 6', 41];
                 case 46:
                     return ['Terrasse', 46];
+                case 47:
+                    return ['Terrasse 2', 47];
+                case 48:
+                    return ['Holzterrasse', 48];
+                case 49:
+                    return ['Steinterrasse', 49];
+                case 50:
+                    return ['Balkon', 50];
+                case 51:
+                    return ['Balkon 2', 51];
                 case 52:
                     return ['Loggia', 52];
+                case 53:
+                    return ['Loggia 2', 53];
+                case 54:
+                    return ['Flachdach 1', 54];
+                case 55:
+                    return ['Flachdach 2', 55];
+                case 56:
+                    return ['Flachdach 3', 56];
+                case 57:
+                    return ['Flachdach 4', 57];
+                case 58:
+                    return ['Speicher', 58];
+                case 59:
+                    return ['Speicher 2', 59];
+                case 60:
+                    return ['Luftraum 1', 60];
+                case 61:
+                    return ['Luftraum 2', 61];
+                case 62:
+                    return ['Luftraum 3', 62];
+                case 66:
+                    return ['Vorplatz', 66];
                 case 67:
                     return ['Keller 1', 67];
                 case 68:
