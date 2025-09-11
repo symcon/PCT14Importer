@@ -493,6 +493,41 @@ declare(strict_types=1);
                     return ($byte1 | $byte2 | $byte3 | $byte4);
                 };
 
+                // Sorting function for SimpleXMLElement by attribute
+                $sortByAttribute = function (&$xml, $attribute) {
+                    $children = [];
+                    $attributes = [];
+                    foreach($xml->entry as $entry) {
+                        $newChild = [];
+                        $newAttribute = [];
+                        foreach ($entry->children() as $key => $value) {
+                            $newChild[$key] = $value->__toString();
+                        }
+                        foreach ($entry->attributes() as $key => $value) {
+                            $newAttribute[$key] = $value->__toString();
+                        }
+                        $children[intval($entry->$attribute)] = $newChild;
+                        $attributes[intval($entry->$attribute)] = $newAttribute;
+                    }
+
+                    // Sort our new entries
+                    ksort($children);
+
+                    // Remove all existing entries
+                    unset($xml->entry);
+
+                    // Re-add the sorted entries
+                    foreach ($children as $index => $child) {
+                        $newChild = $xml->addChild('entry');
+                        foreach ($child as $key => $value) {
+                            $newChild->addChild($key, $value);
+                        }
+                        foreach ($attributes[$index] as $key => $value) {
+                            $newChild->addAttribute($key, $value);
+                        }
+                    }
+                };
+
                 // Search data->rangeofid entries and verify that for the channel->channelnumber
                 // the matching entry->entry_channel exists that has the entry->entry_function set
                 // to the $function value. If yes, we want to use the entry->entry_id and verify
@@ -500,7 +535,7 @@ declare(strict_types=1);
                 // last 2 characters of the entry->entry_id as the address. entry->entry_id needs
                 // to be reversed byte-wise and converted to hex
                 // if no, create the entry and set the needUpdate flag
-                $searchDataEntries = function ($function, $minEntryNumber, $justSearch) use(&$device, $channel, &$needUpdate, $reverseBytes, $item) {
+                $searchDataEntries = function ($function, $minEntryNumber, $justSearch) use(&$device, $channel, &$needUpdate, $reverseBytes, $item, $sortByAttribute) {
                     // This is the device id and is encoded as a reversed bytes value
                     $id = hexdec($this->ReadPropertyString("BaseID")) + $item['address'];
 
@@ -560,6 +595,9 @@ declare(strict_types=1);
 
                     // set need update flag to true
                     $needUpdate = true;
+
+                    // we need to reorder the rangeofid entries by entry_number
+                    $sortByAttribute($device->data->rangeofid, 'entry_number');
 
                     return $item['address'];
                 };
