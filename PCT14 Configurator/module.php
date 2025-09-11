@@ -409,6 +409,7 @@ declare(strict_types=1);
             $needUpdateDevice = false;
             foreach ($device->channels->channel as $channel) {
                 $needUpdate = false;
+                $slotsFull = false;
 
                 $deviceName = strval($channel['description']) ?: strval($device->description);
                 $parentID = 0;
@@ -535,7 +536,7 @@ declare(strict_types=1);
                 // last 2 characters of the entry->entry_id as the address. entry->entry_id needs
                 // to be reversed byte-wise and converted to hex
                 // if no, create the entry and set the needUpdate flag
-                $searchDataEntries = function ($function, $minEntryNumber, $justSearch) use(&$device, $channel, &$needUpdate, $reverseBytes, $item, $sortByAttribute) {
+                $searchDataEntries = function ($function, $minEntryNumber, $slotCount, $justSearch) use(&$device, $channel, &$needUpdate, &$slotsFull, $reverseBytes, $item, $sortByAttribute) {
                     // This is the device id and is encoded as a reversed bytes value
                     $id = hexdec($this->ReadPropertyString("BaseID")) + $item['address'];
 
@@ -574,6 +575,15 @@ declare(strict_types=1);
                         return 0;
                     }
 
+                    // if we reach here, we need to create a new entry
+                    // but only if we have not reached the maximum number of slots
+                    if ($nextEntryNumber >= ($minEntryNumber + $slotCount)) {
+                        // set slots full flag to true
+                        $slotsFull = true;
+
+                        return 0;
+                    }
+
                     // create new entry
                     $entry = $device->data->rangeofid->addChild('entry');
                     $entry->addAttribute('maxnumberofcharacter', "47");
@@ -606,7 +616,7 @@ declare(strict_types=1);
                 switch (intval($device->header->devicetype)) {
                     case 1: // FSR14-4x
                     case 9: // F4SR14-LED
-                        $id = $searchDataEntries(51, 5, false);
+                        $id = $searchDataEntries(51, 5, 116, false);
                         if ($id) {
                             $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
                             $configuration = [
@@ -617,7 +627,7 @@ declare(strict_types=1);
                         }
                         break;
                     case 2: // FSR14-2x
-                        $id = $searchDataEntries(51, 3, false);
+                        $id = $searchDataEntries(51, 3, 118, false);
                         if ($id) {
                             $guid = "{FD46DA33-724B-489E-A931-C00BFD0166C9}";
                             $configuration = [
@@ -629,7 +639,7 @@ declare(strict_types=1);
                         break;
                     case 4: // FUD14
                     case 5: // FUD14/800W
-                        $id = $searchDataEntries(32, 5, false);
+                        $id = $searchDataEntries(32, 5, 112, false);
                         if ($id) {
                             $guid = "{48909406-A2B9-4990-934F-28B9A80CD079}";
                             $configuration = [
@@ -640,7 +650,7 @@ declare(strict_types=1);
                         // FIXME: Also check that "Bestätigungstelegramm mit Dimmer" is also ON!
                         break;
                     case 6: // FSB14
-                        $id = $searchDataEntries(31, 2, false);
+                        $id = $searchDataEntries(31, 2, 119, false);
                         if ($id) {
                             $guid = "{1463CAE7-C7D5-4623-8539-DD7ADA6E92A9}";
                             $configuration = [
@@ -651,8 +661,8 @@ declare(strict_types=1);
                         break;
                     case 15: //FHK14
                     case 24: //F4HK14
-                        $thermostatId = $searchDataEntries(64, 1, true);
-                        $id = $searchDataEntries(65, 9, false);
+                        $thermostatId = $searchDataEntries(64, 1, 4, true);
+                        $id = $searchDataEntries(65, 9, 4, false);
                         if ($id) {
                             $guid = "{7C25F5A6-ED34-4FB4-8A6D-D49DFE636CDC}";
                             $configuration = [
@@ -674,7 +684,9 @@ declare(strict_types=1);
                         $item['status'] = $this->Translate("OK (Not required)");
                         break;
                 }
-                if ($needUpdate) {
+                if ($slotsFull) {
+                    $item['status'] = $this->Translate('Slots are full');
+                } else if ($needUpdate) {
                     $item['status'] = $this->Translate('Needs updating');
                 } elseif ($guid) {
                     $item['create'] = [

@@ -16,7 +16,8 @@
             "Image Set": "Bildstil",
             "OK (Not required)": "OK (Nicht benötigt)",
             "Radio Devices CSV": "Funkkomponenten CSV",
-            "Security Devices CSV": "Verschlussüberwachung CSV"
+            "Security Devices CSV": "Verschlussüberwachung CSV",
+            "Slots are full": "Plätze sind voll"
         }
     }
 }
