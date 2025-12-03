@@ -656,6 +656,7 @@ declare(strict_types=1);
                             $configuration = [
                                 'DeviceID' => $id,
                                 'ReturnID' => sprintf('%08X', $id),
+                                'EmulateStatus' => false,
                             ];
                         }
                         break;
