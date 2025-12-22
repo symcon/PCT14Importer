@@ -706,6 +706,9 @@ declare(strict_types=1);
                                 'BaseID' => $this->ReadPropertyString('BaseID'),
                             ]
                         ],
+                        [
+                            'moduleID' => '{6DC3D946-0D31-450F-A8C6-C42DB8D7D4F1}', // Serial Port
+                        ],
                     ];
                     $item['instanceID'] = $this->searchDevice($id, $guid);
                     if (is_int($id)) {
