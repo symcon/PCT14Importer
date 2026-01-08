@@ -708,6 +708,7 @@ declare(strict_types=1);
                         ],
                         [
                             'moduleID' => '{6DC3D946-0D31-450F-A8C6-C42DB8D7D4F1}', // Serial Port
+                            'configuration' => new stdClass(),
                         ],
                     ];
                     $item['instanceID'] = $this->searchDevice($id, $guid);
