@@ -32,13 +32,13 @@ declare(strict_types=1);
             $specialMode = false;
             $configurator = [];
             $updateCount = 0;
-            $updateContent = "";
+            $xmlContent = "";
             if ($this->ReadPropertyString('ImportFile')) {
-                $specialMode = $this->createPCT14ConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator, $updateCount, $updateContent);
+                $specialMode = $this->createPCT14ConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator, $updateCount, $xmlContent);
                 if ($updateCount) {
                     $data['actions'][2]['visible'] = true;
                     $data['actions'][2]['popup']['items'][0]['caption'] = sprintf($this->Translate($data['actions'][2]['popup']['items'][0]['caption']), $updateCount);
-                    $data['actions'][2]['popup']['items'][1]['onClick'] = $updateContent;
+                    $data['actions'][2]['popup']['items'][1]['onClick'] = $this->addOnClickContantDownload($xmlContent);
                 }
             }
             if ($this->ReadPropertyString('RadioFile')) {
@@ -145,7 +145,7 @@ declare(strict_types=1);
             return $imageSets;
         }
 
-        private function createPCT14ConfiguratorValues(String $File, &$configurator, &$updateCount, &$updateContent)
+        private function createPCT14ConfiguratorValues(String $File, &$configurator, &$updateCount, &$xmlContent)
         {
             if (strlen($File) == 0) {
                 return false;
@@ -160,7 +160,7 @@ declare(strict_types=1);
             // and should open the dialog to allow downloading of the updated XML file
             // initialize with zero and no content
             $updateCount = 0;
-            $updateContent = "";
+            $xmlContent = "";
 
             // Check for any special location patterns to enable special mode
             $specialMode = false;
@@ -188,18 +188,22 @@ declare(strict_types=1);
                 $dom->preserveWhiteSpace = false;
                 $dom->formatOutput = true;
                 $dom->loadXML($xml->asXML());
-                $updateContent = "echo 'data:text/xml;base64," . base64_encode($dom->saveXML()) . "';";
+                $xmlContent = $dom->saveXML();
             }
 
             return $specialMode;
+        }
+
+        private function addOnClickContantDownload($xmlContent) {
+            return "echo 'data:text/xml;base64," . base64_encode($xmlContent) . "';";
         }
 
         public function UIImport($ImportContent, $RadioContent, $SecurityContent)
         {
             $configurator = [];
             $updateCount = 0;
-            $updateContent = "";
-            $specialMode = $this->createPCT14ConfiguratorValues($ImportContent, $configurator, $updateCount, $updateContent);
+            $xmlContent = "";
+            $specialMode = $this->createPCT14ConfiguratorValues($ImportContent, $configurator, $updateCount, $xmlContent);
             $this->createRadioConfiguratorValues($RadioContent, $configurator);
             $this->createSecurityConfiguratorValues($SecurityContent, $configurator);
             $this->UpdateFormField('Configurator', 'values', json_encode($configurator));
@@ -210,7 +214,7 @@ declare(strict_types=1);
                 $this->UpdateFormField('DownloadAlert', 'visible', true);
                 $data = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
                 $this->UpdateFormField('DownloadHint', 'caption', sprintf($this->Translate($data['actions'][2]['popup']['items'][0]['caption']), $updateCount));
-                $this->UpdateFormField('DownloadButton', 'onClick', $updateContent);
+                $this->UpdateFormField('DownloadButton', 'onClick', $this->addOnClickContantDownload($xmlContent));
             }
         }
 
@@ -907,5 +911,22 @@ declare(strict_types=1);
                 default:
                     return ["Raum $value", $value];
             }
+        }
+
+        public function UIDownloadXML() {
+            if (!$this->ReadPropertyString('ImportFile')) {
+                die($this->Translate("No XML file available for download"));
+            }
+
+            $configurator = [];
+            $updateCount = 0;
+            $xmlContent = "";
+            $this->createPCT14ConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator, $updateCount, $xmlContent);
+
+            if (!$updateCount) {
+                die($this->Translate("Nothing needs to be updated in the XML file"));
+            }
+
+            return $xmlContent;
         }
     }
