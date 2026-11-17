@@ -29,6 +29,10 @@ Das Modul ermöglicht es aus der PCT14 exportierte XML-Dateien in IP-Symcon zu i
  Unter 'Instanz hinzufügen' kann das 'PCT14 Importer'-Modul mithilfe des Schnellfilters gefunden werden.  
 	- Weitere Informationen zum Hinzufügen von Instanzen in der [Dokumentation der Instanzen](https://www.symcon.de/service/dokumentation/konzepte/instanzen/#Instanz_hinzufügen)
 
+Der Konfigurator muss mit dem EnOcean Gateway (FGW14) der gewünschten Linie als übergeordnete Instanz verbunden werden.
+Die BaseID wird automatisch aus diesem Gateway übernommen und neu erstellte Geräte werden mit diesem Gateway verbunden.
+Bei mehreren Linien wird pro Linie ein eigener Konfigurator angelegt.
+
 __Konfigurationsseite__:
 
 Name                  | Beschreibung

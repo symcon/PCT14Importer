@@ -11,7 +11,6 @@ declare(strict_types=1);
             $this->RegisterPropertyString('ImportFile', '');
             $this->RegisterPropertyString('RadioFile', '');
             $this->RegisterPropertyString('SecurityFile', '');
-            $this->RegisterPropertyString('BaseID', '0000A000');
         }
 
         public function Destroy()
@@ -24,6 +23,41 @@ declare(strict_types=1);
         {
             //Never delete this line!
             parent::ApplyChanges();
+
+            // We are not interested in any telegrams. We only need the connection to the gateway
+            $this->SetReceiveDataFilter('^$');
+        }
+
+        public function ReceiveData($JSONString)
+        {
+            // Nothing to do. The configurator does not process any telegrams
+            return '';
+        }
+
+        private function getGatewayID(): int
+        {
+            $gatewayID = IPS_GetInstance($this->InstanceID)['ConnectionID'];
+            if ($gatewayID && IPS_InstanceExists($gatewayID)) {
+                return $gatewayID;
+            }
+            return 0;
+        }
+
+        private function getBaseID(): string
+        {
+            $gatewayID = $this->getGatewayID();
+            if (!$gatewayID) {
+                return '';
+            }
+            $configuration = json_decode(IPS_GetConfiguration($gatewayID), true);
+            if (!isset($configuration['BaseID'])) {
+                return '';
+            }
+            $baseID = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', strval($configuration['BaseID'])));
+            if (!$baseID || (hexdec($baseID) == 0)) {
+                return '';
+            }
+            return str_pad($baseID, 8, '0', STR_PAD_LEFT);
         }
 
         public function GetConfigurationForm(): string
@@ -33,7 +67,7 @@ declare(strict_types=1);
             $configurator = [];
             $updateCount = 0;
             $xmlContent = "";
-            if ($this->ReadPropertyString('ImportFile')) {
+            if ($this->ReadPropertyString('ImportFile') && $this->getBaseID()) {
                 $specialMode = $this->createPCT14ConfiguratorValues($this->ReadPropertyString('ImportFile'), $configurator, $updateCount, $xmlContent);
                 if ($updateCount) {
                     $data['actions'][2]['visible'] = true;
@@ -48,11 +82,20 @@ declare(strict_types=1);
                 $this->createSecurityConfiguratorValues($this->ReadPropertyString('SecurityFile'), $configurator);
             }
 
+            $data['elements'][0]['items'][1]['visible'] = $specialMode;
             $data['elements'][0]['items'][2]['visible'] = $specialMode;
-            $data['elements'][0]['items'][3]['visible'] = $specialMode;
             $data['actions'][0]['items'][0]['options'] = $this->getImageSets();
             $data['actions'][0]['visible'] = $specialMode;
             $data['actions'][1]['values'] = $configurator;
+
+            // Show a hint if we cannot get a valid BaseID from the connected gateway
+            if (!$this->getGatewayID()) {
+                $data['elements'][1]['caption'] = 'No EnOcean Gateway connected. Please select the EnOcean Gateway of the desired line as parent.';
+                $data['elements'][1]['visible'] = true;
+            } elseif (!$this->getBaseID()) {
+                $data['elements'][1]['caption'] = 'The connected EnOcean Gateway has no valid BaseID configured.';
+                $data['elements'][1]['visible'] = true;
+            }
 
             return json_encode($data);
         }
@@ -61,10 +104,10 @@ declare(strict_types=1);
         {
             $checkedCategories = [];
             foreach ($configurator as $device) {
-                if (($device['instanceID'] != 0) && isset($device['create'][0]['location'])) {
+                if (($device['instanceID'] != 0) && isset($device['create']['location'])) {
                     $instanceID = $device['instanceID'];
                     $parentID = IPS_GetParent($instanceID);
-                    $location = $device['create'][0]['location'];
+                    $location = $device['create']['location'];
                     do {
                         if (!in_array($parentID, $checkedCategories)) {
                             $this->addImage($parentID, IPS_GetName($parentID), $imageSet);
@@ -148,6 +191,11 @@ declare(strict_types=1);
         private function createPCT14ConfiguratorValues(String $File, &$configurator, &$updateCount, &$xmlContent)
         {
             if (strlen($File) == 0) {
+                return false;
+            }
+
+            // Without the BaseID of the connected gateway we cannot verify/patch the entries
+            if (!$this->getBaseID()) {
                 return false;
             }
 
@@ -274,9 +322,10 @@ declare(strict_types=1);
 
         private function searchDevice($deviceID, $guid): int
         {
+            $gatewayID = $this->getGatewayID();
             $ids = IPS_GetInstanceListByModuleID($guid);
             foreach ($ids as $id) {
-                if (IPS_GetProperty($id, 'DeviceID') == $deviceID) {
+                if ((IPS_GetProperty($id, 'DeviceID') == $deviceID) && (IPS_GetInstance($id)['ConnectionID'] == $gatewayID)) {
                     return $id;
                 }
             }
@@ -326,11 +375,11 @@ declare(strict_types=1);
             ];
             $create = $this->getCsvCreate($type, $name, $deviceId);
             if ($create) {
+                $create['location'] = $location;
                 $item['create'] = $create;
-                $item['instanceID'] = $this->searchDevice($deviceId, $item['create'][0]['moduleID']);
+                $item['instanceID'] = $this->searchDevice($deviceId, $create['moduleID']);
             }
             $item['status'] = sprintf("OK (%s)", $deviceId);
-            $item['create'][0]['location'] = $location;
             $configurator[] = $item;
         }
 
@@ -379,20 +428,9 @@ declare(strict_types=1);
                         break;
                 }
                 return [
-                    [
-                        'name' => $name,
-                        'moduleID' => $guid,
-                        'configuration' => $configuration,
-                    ],
-                    [
-                        'name' => 'FGW14 Gateway',
-                        // EnOcean Gateway
-                        'moduleID' => '{A52FEFE9-7858-4B8E-A96E-26E15CB944F7}',
-                        'configuration' => [
-                            'GatewayMode' => 4,
-                            'BaseID' => $this->ReadPropertyString('BaseID'),
-                        ]
-                    ]
+                    'name' => $name,
+                    'moduleID' => $guid,
+                    'configuration' => $configuration,
                 ];
             }
             return null;
@@ -414,6 +452,7 @@ declare(strict_types=1);
             foreach ($device->channels->channel as $channel) {
                 $needUpdate = false;
                 $slotsFull = false;
+                $baseID = $this->getBaseID();
 
                 $deviceName = strval($channel['description']) ?: strval($device->description);
                 $parentID = 0;
@@ -540,9 +579,9 @@ declare(strict_types=1);
                 // last 2 characters of the entry->entry_id as the address. entry->entry_id needs
                 // to be reversed byte-wise and converted to hex
                 // if no, create the entry and set the needUpdate flag
-                $searchDataEntries = function ($function, $minEntryNumber, $slotCount, $justSearch) use(&$device, $channel, &$needUpdate, &$slotsFull, $reverseBytes, $item, $sortByAttribute) {
+                $searchDataEntries = function ($function, $minEntryNumber, $slotCount, $justSearch) use(&$device, $channel, &$needUpdate, &$slotsFull, $reverseBytes, $item, $sortByAttribute, $baseID) {
                     // This is the device id and is encoded as a reversed bytes value
-                    $id = hexdec($this->ReadPropertyString("BaseID")) + $item['address'];
+                    $id = hexdec($baseID) + $item['address'];
 
                     $nextEntryNumber = $minEntryNumber;
                     foreach ($device->data->rangeofid->entry as $entry) {
@@ -557,7 +596,7 @@ declare(strict_types=1);
                                 // for normal searching, we want to return the last 2 bytes
                                 // as device id if the baseID matches
                                 $entryIdHex = sprintf("%08X", $entryIdReversed);
-                                if (substr($this->ReadPropertyString("BaseID"), 0, 6) == substr($entryIdHex, 0, 6)) {
+                                if (substr($baseID, 0, 6) == substr($entryIdHex, 0, 6)) {
                                     // we need to update the device id part of the entry_id
                                     if (($entryIdReversed & 0xFF) != $item['address']) {
                                         $entry->entry_id = $reverseBytes($id);
@@ -695,29 +734,14 @@ declare(strict_types=1);
                     $item['status'] = $this->Translate('Needs updating');
                 } elseif ($guid) {
                     $item['create'] = [
-                        [
-                            'name' => $item['name'],
-                            'moduleID' => $guid,
-                            'configuration' => $configuration,
-                            'location' => $location,
-                        ],
-                        [
-                            'name' => 'FGW14 Gateway',
-                            // EnOcean Gateway
-                            'moduleID' => '{A52FEFE9-7858-4B8E-A96E-26E15CB944F7}',
-                            'configuration' => [
-                                'GatewayMode' => 4,
-                                'BaseID' => $this->ReadPropertyString('BaseID'),
-                            ]
-                        ],
-                        [
-                            'moduleID' => '{6DC3D946-0D31-450F-A8C6-C42DB8D7D4F1}', // Serial Port
-                            'configuration' => new stdClass(),
-                        ],
+                        'name' => $item['name'],
+                        'moduleID' => $guid,
+                        'configuration' => $configuration,
+                        'location' => $location,
                     ];
                     $item['instanceID'] = $this->searchDevice($id, $guid);
                     if (is_int($id)) {
-                        $item['status'] = sprintf("OK (%s%02X)", substr($this->ReadPropertyString('BaseID'), 0, 6), $id);
+                        $item['status'] = sprintf("OK (%s%02X)", substr($baseID, 0, 6), $id);
                     } else {
                         $item['status'] = sprintf("OK (%s)", $id);
                     }
@@ -916,6 +940,10 @@ declare(strict_types=1);
         public function UIDownloadXML() {
             if (!$this->ReadPropertyString('ImportFile')) {
                 die($this->Translate("No XML file available for download"));
+            }
+
+            if (!$this->getBaseID()) {
+                die($this->Translate("No EnOcean Gateway with a valid BaseID connected"));
             }
 
             $configurator = [];

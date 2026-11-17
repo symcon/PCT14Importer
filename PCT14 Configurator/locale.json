@@ -17,7 +17,13 @@
             "OK (Not required)": "OK (Nicht benötigt)",
             "Radio Devices CSV": "Funkkomponenten CSV",
             "Security Devices CSV": "Verschlussüberwachung CSV",
-            "Slots are full": "Plätze sind voll"
+            "Slots are full": "Plätze sind voll",
+            "No EnOcean Gateway connected. Please select the EnOcean Gateway of the desired line as parent.": "Kein EnOcean Gateway verbunden. Bitte das EnOcean Gateway der gewünschten Linie als übergeordnete Instanz auswählen.",
+            "The connected EnOcean Gateway has no valid BaseID configured.": "Das verbundene EnOcean Gateway hat keine gültige BaseID konfiguriert.",
+            "No EnOcean Gateway with a valid BaseID connected": "Kein EnOcean Gateway mit gültiger BaseID verbunden",
+            "No XML file available for download": "Keine XML-Datei zum Herunterladen verfügbar",
+            "Nothing needs to be updated in the XML file": "In der XML-Datei muss nichts aktualisiert werden",
+            "Status": "Status"
         }
     }
 }

@@ -11,11 +11,6 @@
                     "onChange": "PCTI_UIImport($id, $ImportFile, $RadioFile, $SecurityFile);"
                 },
                 {
-                    "type": "ValidationTextBox",
-                    "name": "BaseID",
-                    "caption": "BaseID"
-                },
-                {
                     "type": "SelectFile",
                     "name": "RadioFile",
                     "caption": "Radio Devices CSV",
@@ -30,6 +25,12 @@
                     "onChange": "PCTI_UIImport($id, $ImportFile, $RadioFile, $SecurityFile);"
                 }
             ]
+        },
+        {
+            "type": "Label",
+            "name": "GatewayHint",
+            "caption": "",
+            "visible": false
         }
     ],
     "actions": [
